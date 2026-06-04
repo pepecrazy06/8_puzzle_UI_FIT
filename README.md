@@ -1,13 +1,13 @@
 # Thông tin
-Đại Học Công Nghệ Kỹ Thuật TP.HCM
-Khoa Công Nghệ Thông Tin
-Học phần: Trí Tuệ Nhân Tạo
-Mã LHP: ARIN330585_08
-GVHD: TS. Phan Thị Huyền Trang 
-SVTH: Thái Nhựt Huy
-Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
-Cập nhật lần cuối: 06/04/2026
-Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
+- Đại Học Công Nghệ Kỹ Thuật TP.HCM
+- Khoa Công Nghệ Thông Tin
+- Học phần: Trí Tuệ Nhân Tạo
+- Mã LHP: ARIN330585_08
+- GVHD: TS. Phan Thị Huyền Trang 
+- SVTH: Thái Nhựt Huy
+- Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
+- Cập nhật lần cuối: 06/04/2026
+- Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
 # 8-Puzzle Multi-Algorithm AI Search Visualizer
 
 Dự án mô phỏng và trực quan hóa quá trình giải bài toán **8-Puzzle** bằng nhiều thuật toán tìm kiếm AI. Người dùng có thể nhập trạng thái bắt đầu, trạng thái đích, chọn thuật toán và quan sát từng bước duyệt trạng thái trên giao diện web.

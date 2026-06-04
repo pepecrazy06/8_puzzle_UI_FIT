@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8-Puzzle Multi-Algorithm AI Search Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1e29; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+        .tile-transition { transition: all 0.2s ease-in-out; }
+    </style>
+</head>
+<body class="bg-[#12151e] text-[#e2e8f0] font-sans min-h-screen flex flex-col p-6 justify-between select-none">
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 w-full max-w-7xl mx-auto items-stretch">
+        <div class="lg:col-span-2 bg-[#1a1e29] border border-[#334155] rounded-xl p-6 flex flex-col justify-between shadow-2xl relative min-h-[450px]">
+            <div class="absolute top-4 left-4 text-xs font-semibold tracking-wider text-[#94a3b8] uppercase">8 Puzzle Search Board</div>
+            <div class="flex flex-grow justify-center items-center my-8">
+                <div id="main-board" class="grid grid-cols-3 gap-4 bg-[#12151e] p-4 rounded-2xl border border-[#334155] shadow-inner w-80 h-80"></div>
+            </div>
+            <div class="text-center text-xs text-[#94a3b8]">Ma trận chuyển động mô phỏng thuật toán đang chạy thực tế</div>
+        </div>
+
+        <div class="flex flex-col gap-4 h-full">
+            <div class="bg-[#1a1e29] border border-[#334155] rounded-xl p-5 shadow-lg">
+                <h2 class="text-blue-400 font-bold text-sm tracking-widest uppercase mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> Bảng Trạng Thái
+                </h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between border-b border-[#272e3f] pb-1.5"><span class="text-[#94a3b8]">Thuật toán:</span><span id="lbl-algo" class="font-bold text-slate-100">-</span></div>
+                    <div class="flex justify-between border-b border-[#272e3f] pb-1.5"><span class="text-[#94a3b8]">Bước hiện tại:</span><span id="lbl-step" class="font-bold text-slate-100">-</span></div>
+                    <div class="flex justify-between border-b border-[#272e3f] pb-1.5"><span class="text-[#94a3b8]">Vị trí ô trống:</span><span id="lbl-empty" class="font-bold text-slate-100">-</span></div>
+                    <div class="flex justify-between border-b border-[#272e3f] pb-1.5"><span class="text-[#94a3b8]">Hành động:</span><span id="lbl-action" class="font-bold text-slate-100">-</span></div>
+                    <div class="flex justify-between pt-0.5"><span class="text-[#94a3b8]">Kết quả:</span><span id="lbl-result" class="font-bold text-yellow-400">Chưa chạy</span></div>
+                </div>
+            </div>
+
+            <div class="bg-[#1a1e29] border border-[#334155] rounded-xl p-5 shadow-lg flex-1 flex flex-col justify-between min-h-[220px]">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-[#e2e8f0] font-bold text-sm tracking-widest uppercase">🗎 Nhật Ký Ghi Nhận</h2>
+                    <button onclick="openDetailsModal()" class="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1 cursor-pointer">Xem chi tiết quá trình ➝</button>
+                </div>
+                <div id="txt-log" class="bg-[#12151e] text-[#94a3b8] font-mono text-xs p-3 rounded-lg flex-1 overflow-y-auto whitespace-pre-line border border-[#272e3f]">Hệ thống sẵn sàng. Chọn giải thuật và bấm Run AI.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full max-w-7xl mx-auto bg-[#1a1e29] border border-[#334155] rounded-xl p-5 mt-6 shadow-xl grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Chọn thuật toán:</label>
+            <select id="algo-select" class="bg-[#12151e] border border-[#334155] text-sm text-slate-200 rounded-lg p-2.5 outline-none focus:border-blue-500 cursor-pointer">
+                <optgroup label="Uninformed Search (Tìm kiếm mù)">
+                    <option value="BFS_CHILD">BFS - Child-Node Approach</option>
+                    <option value="BFS_EXPAND">BFS - Expand Approach</option>
+                    <option value="DFS">Depth-First Search (DFS)</option>
+                    <option value="IDS">Iterative Deepening Search (IDS)</option>
+                    <option value="UCS">Uniform Cost Search (UCS)</option>
+                </optgroup>
+                <optgroup label="Informed Search (Ước lượng Heuristic)">
+                    <option value="GREEDY_MANHATTAN">Greedy Best-First (Manhattan)</option>
+                    <option value="GREEDY_MISPLACED">Greedy Best-First (Misplaced Tiles)</option>
+                    <option value="ASTAR_MANHATTAN">A* Search (Manhattan Distance)</option>
+                    <option value="ASTAR_MISPLACED">A* Search (Misplaced Tiles)</option>
+                </optgroup>
+                <optgroup label="Local Search (Tìm kiếm địa phương)">
+                    <option value="HILL_SIMPLE">Simple Hill Climbing (Manhattan)</option>
+                    <option value="HILL_STEEPEST">Steepest Ascent Hill Climbing</option>
+                    <option value="HILL_SIMPLE_MISPLACED">Simple Hill Climbing (Misplaced Tiles)</option>
+                    <option value="HILL_STEEPEST_MISPLACED">Steepest Ascent Hill Climbing (Misplaced Tiles)</option>
+                    <option value="HILL_FIRST_CHOICE">First-Choice Hill Climbing (Manhattan)</option>
+                    <option value="HILL_STOCHASTIC">Stochastic Hill Climbing (Manhattan)</option>
+                    <option value="HILL_RESTART">Random Restart Hill Climbing</option>
+                    <option value="LOCAL_BEAM">Local Beam Search (k=2)</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <div class="flex flex-col gap-2 items-center">
+            <button id="btn-run" onclick="solvePuzzle()" class="bg-blue-600 hover:bg-blue-500 font-bold text-sm text-white py-2.5 px-6 rounded-lg w-full max-w-[200px] shadow-md transition-all cursor-pointer">▶ Run AI Engine</button>
+            <div class="grid grid-cols-4 gap-1.5 w-full max-w-[240px]">
+                <button onclick="stepPrev()" class="bg-[#272e3f] hover:bg-[#334155] text-xs py-2 rounded-md font-medium cursor-pointer">←</button>
+                <button id="btn-auto" onclick="playAuto()" class="bg-[#272e3f] hover:bg-[#334155] text-xs py-2 rounded-md font-medium col-span-2 cursor-pointer">↻ Tự động</button>
+                <button onclick="stepNext()" class="bg-[#272e3f] hover:bg-[#334155] text-xs py-2 rounded-md font-medium cursor-pointer">→</button>
+            </div>
+            <button onclick="resetBoard()" class="text-xs text-[#94a3b8] hover:text-rose-400 transition-colors font-semibold mt-1 cursor-pointer">⟲ Reset Trạng Thái</button>
+        </div>
+
+        <div class="flex flex-col gap-2 items-end">
+            <div class="flex justify-between items-center w-full max-w-[220px]">
+                <label class="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Cài đặt ô:</label>
+                <select id="state-type" onchange="loadStateToInputs()" class="bg-[#12151e] border border-[#334155] text-xs text-slate-300 rounded p-1 cursor-pointer">
+                    <option value="start">Mảng bắt đầu</option>
+                    <option value="goal">Mảng đích</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-3 w-full justify-end">
+                <div id="grid-inputs" class="grid grid-cols-3 gap-1"></div>
+                <button onclick="saveStateInputs()" class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white text-xs font-bold py-4 px-3 rounded-lg border border-blue-500/30 transition-all cursor-pointer h-full">✓ Cập<br>nhật</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="details-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4 md:p-8 hidden">
+        <div class="bg-[#f8fafc] w-full max-w-7xl h-[85vh] rounded-xl shadow-2xl flex flex-col text-slate-800 overflow-hidden border border-slate-200">
+            <div class="bg-slate-800 text-white p-4 flex justify-between items-center shadow-md">
+                <div>
+                    <h3 class="font-bold text-base">Chi Tiết Quá Trình Tìm Kiếm Không Gian Trạng Thái</h3>
+                    <p class="text-xs text-slate-400">Theo vết thời gian thực: Cấu trúc cột tự động thay đổi linh hoạt tùy theo nhóm thuật toán</p>
+                </div>
+                <button onclick="closeDetailsModal()" class="bg-slate-700 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg text-sm cursor-pointer">Đóng [X]</button>
+            </div>
+            <div id="modal-header-cols" class="bg-[#cbd5e1] border-b border-slate-300 font-bold text-xs text-slate-700 flex py-2.5 shadow-inner"></div>
+            <div id="modal-rows-container" class="flex-1 overflow-y-auto bg-[#f8fafc]"></div>
+        </div>
+    </div>
+
+    <script>
+        let startState = [1, 2, 3, 4, 0, 6, 7, 5, 8];
+        let goalState = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+        let history = [];
+        let currentStep = 0;
+        let isPlaying = false;
+        let autoTimer = null;
+
+        function init() {
+            const mainBoard = document.getElementById("main-board");
+            mainBoard.innerHTML = "";
+            for (let i = 0; i < 9; i++) {
+                let d = document.createElement("div");
+                d.id = `tile-${i}`;
+                d.className = `tile-transition flex justify-center items-center text-3xl font-bold text-white rounded-xl shadow-md border border-slate-700/30 bg-[#2a3142]`;
+                mainBoard.appendChild(d);
+            }
+            const gridInputs = document.getElementById("grid-inputs");
+            gridInputs.innerHTML = "";
+            for (let i = 0; i < 9; i++) {
+                let input = document.createElement("input");
+                input.id = `input-${i}`;
+                input.type = "text";
+                input.maxLength = 1;
+                input.className = "w-10 h-10 bg-[#2a3142] text-white font-bold text-sm text-center rounded border border-[#334155] outline-none focus:border-blue-500";
+                gridInputs.appendChild(input);
+            }
+            loadStateToInputs();
+            drawMainBoard(startState);
+        }
+
+        function drawMainBoard(state) {
+            for (let i = 0; i < 9; i++) {
+                let val = state[i];
+                let tile = document.getElementById(`tile-${i}`);
+                if (val === 0) {
+                    tile.innerText = "";
+                    tile.className = "tile-transition flex justify-center items-center text-3xl font-bold rounded-xl shadow-inner bg-[#12151e]";
+                } else {
+                    tile.innerText = val;
+                    tile.className = "tile-transition flex justify-center items-center text-3xl font-bold text-white rounded-xl shadow-md border border-slate-700/30 bg-[#2a3142]";
+                }
+            }
+            let emptyIdx = state.indexOf(0);
+            document.getElementById("lbl-empty").innerText = `(${Math.floor(emptyIdx/3)}, ${emptyIdx%3})`;
+        }
+
+        function loadStateToInputs() {
+            let type = document.getElementById("state-type").value;
+            let targetState = (type === "start") ? startState : goalState;
+            for (let i = 0; i < 9; i++) document.getElementById(`input-${i}`).value = targetState[i];
+        }
+
+        function saveStateInputs() {
+            let type = document.getElementById("state-type").value;
+            let temp = [];
+            for (let i = 0; i < 9; i++) {
+                let v = parseInt(document.getElementById(`input-${i}`).value);
+                if (isNaN(v) || v < 0 || v > 8) { alert("Vui lòng nhập số từ 0-8!"); return; }
+                temp.push(v);
+            }
+            if (new Set(temp).size !== 9) { alert("Mảng không được chứa ký tự trùng lặp!"); return; }
+            if (type === "start") { startState = temp; drawMainBoard(startState); logMsg("Cập nhật Start State."); }
+            else { goalState = temp; logMsg("Cập nhật Goal State."); }
+        }
+
+        function logMsg(msg) {
+            let logBox = document.getElementById("txt-log");
+            logBox.innerText += `\n> ${msg}`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function solvePuzzle() {
+            let algo = document.getElementById("algo-select").value;
+            document.getElementById("lbl-algo").innerText = document.getElementById("algo-select").options[document.getElementById("algo-select").selectedIndex].text;
+            document.getElementById("lbl-result").innerText = "Đang xử lý Backend...";
+            document.getElementById("lbl-result").className = "font-bold text-yellow-400";
+
+            fetch('/api/solve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start: startState, goal: goalState, algo: algo })
+            })
+            .then(res => res.json())
+            .then(data => {
+                history = data.history;
+                currentStep = 0;
+                if (data.success) {
+                    document.getElementById("lbl-result").innerText = `Thành công (${data.time} ms)`;
+                    document.getElementById("lbl-result").className = "font-bold text-green-400";
+                    logMsg(`Thuật toán ${algo} chạy xong! Khai phá ${history.length} bước duyệt.`);
+                } else {
+                    document.getElementById("lbl-result").innerText = "Dừng / Thất bại";
+                    document.getElementById("lbl-result").className = "font-bold text-rose-500";
+                    logMsg(`Thuật toán ${algo} dừng ở cực trị cục bộ hoặc không tìm ra đích.`);
+                }
+                updateStatusPanel();
+            })
+            .catch(err => { alert("Lỗi kết nối Python Server Backend!"); console.error(err); });
+        }
+
+        function updateStatusPanel() {
+            if (!history.length) return;
+            let stepData = history[currentStep];
+            document.getElementById("lbl-step").innerText = `${currentStep + 1} / ${history.length}`;
+            document.getElementById("lbl-action").innerText = stepData.node.action ? stepData.node.action : "Start Node";
+            drawMainBoard(stepData.node.state);
+        }
+
+        function stepNext() { if (history.length && currentStep < history.length - 1) { currentStep++; updateStatusPanel(); } }
+        function stepPrev() { if (history.length && currentStep > 0) { currentStep--; updateStatusPanel(); } }
+
+        function playAuto() {
+            if (!history.length) return;
+            let btn = document.getElementById("btn-auto");
+            if (isPlaying) { isPlaying = false; btn.innerText = "↻ Tự động"; clearInterval(autoTimer); }
+            else {
+                isPlaying = true; btn.innerText = "⏸ Dừng";
+                autoTimer = setInterval(() => {
+                    if (currentStep < history.length - 1) stepNext();
+                    else { isPlaying = false; btn.innerText = "↻ Tự động"; clearInterval(autoTimer); }
+                }, 350);
+            }
+        }
+
+        function resetBoard() {
+            isPlaying = false; clearInterval(autoTimer);
+            document.getElementById("btn-auto").innerText = "↻ Tự động";
+            history = []; currentStep = 0; drawMainBoard(startState);
+            document.getElementById("lbl-result").innerText = "Chưa chạy";
+            document.getElementById("lbl-result").className = "font-bold text-yellow-400";
+            document.getElementById("lbl-step").innerText = "-"; document.getElementById("lbl-action").innerText = "-";
+            document.getElementById("txt-log").innerText = "Hệ thống đã làm mới.";
+        }
+
+        function buildMiniBoardHTML(state) {
+            let html = `<div class="grid grid-cols-3 gap-[1px] bg-slate-400 p-[1px] w-12 h-12 rounded shadow-sm flex-shrink-0">`;
+            for (let i = 0; i < 9; i++) {
+                let v = state[i];
+                let bg = (v === 0) ? "bg-slate-800" : "bg-slate-100";
+                let fg = (v === 0) ? "text-slate-800" : "text-slate-900";
+                html += `<div class="${bg} ${fg} flex justify-center items-center font-bold text-[8px] h-[14px] w-[14px] rounded-[1px]">${v !== 0 ? v : ''}</div>`;
+            }
+            return html + `</div>`;
+        }
+
+        function calculateDynamicHeuristic(state, mode) {
+            const goal = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+            if (mode.includes("MISPLACED")) {
+                let count = 0;
+                for (let i = 0; i < 9; i++) {
+                    if (state[i] !== 0 && state[i] !== goal[i]) count++;
+                }
+                return count;
+            } else {
+                let total = 0;
+                for (let value = 1; value <= 8; value++) {
+                    let currIdx = state.indexOf(value);
+                    let goalIdx = goal.indexOf(value);
+                    total += Math.abs(Math.floor(currIdx / 3) - Math.floor(goalIdx / 3)) + Math.abs((currIdx % 3) - (goalIdx % 3));
+                }
+                return total;
+            }
+        }
+
+        function openDetailsModal() {
+            if (!history.length) { alert("Vui lòng ấn Run AI Engine trước khi xem bảng không gian!"); return; }
+            
+            let algo = document.getElementById("algo-select").value;
+            let isHillClimbing = algo.includes("HILL") || algo === "LOCAL_BEAM"; 
+            let hLabel = algo.includes("MISPLACED") ? "h (Misplaced)" : "h (Manhattan)";
+            
+            const headerCols = document.getElementById("modal-header-cols");
+            if (isHillClimbing) {
+                headerCols.innerHTML = `
+                    <div class="w-[140px] px-4">Current Node</div>
+                    <div class="flex-1 px-2">Neighbors & Evaluation (Các trạng thái lân cận đang xét & Kết quả lựa chọn bước đi tiếp theo)</div>
+                `;
+            } else {
+                headerCols.innerHTML = `
+                    <div class="w-[120px] px-4">Node</div>
+                    <div class="w-[480px] px-2">Frontier (Các trạng thái con sinh ra đưa vào Queue / Heap)</div>
+                    <div class="flex-1 px-2">Reached (Tập các trạng thái đã ghi nhận / Visited)</div>
+                `;
+            }
+
+            const container = document.getElementById("modal-rows-container");
+            container.innerHTML = "";
+
+            history.forEach((step, index) => {
+                let row = document.createElement("div");
+                row.className = "flex items-stretch border-b border-slate-200 text-xs text-slate-800 hover:bg-slate-50 transition-colors";
+
+                if (isHillClimbing) {
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[140px] max-w-[140px] min-w-[140px] p-4 flex flex-col gap-1.5 border-r border-slate-200 flex-shrink-0";
+                    let currentH = calculateDynamicHeuristic(step.node.state, algo);
+                    col1.innerHTML = `
+                        <span class="font-bold text-blue-600">Bước ${index + 1}</span>
+                        <span class="text-[10px] font-mono text-slate-500 leading-tight">ID: Node ${step.node.id}<br>${hLabel} = ${currentH}</span>
+                        ${buildMiniBoardHTML(step.node.state)}
+                    `;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "flex-1 p-3 flex flex-col gap-2 overflow-x-auto justify-center";
+
+                    if (step.frontier_added.length === 0) {
+                        col2.innerHTML = `<span class="text-emerald-600 font-bold text-sm flex items-center gap-1">★ Đã chạm trạng thái Đích GOAL (Tìm thấy lời giải thành công!)</span>`;
+                    } else {
+                        let nextStepNodeState = (index < history.length - 1) ? history[index + 1].node.state.join(',') : null;
+                        let gridNeighbors = document.createElement("div");
+                        gridNeighbors.className = "flex flex-col gap-1.5";
+
+                        step.frontier_added.forEach(f => {
+                            let fLine = document.createElement("div");
+                            let fH = calculateDynamicHeuristic(f.state, algo);
+                            let isChosen = (f.state.join(',') === nextStepNodeState);
+
+                            if (isChosen) {
+                                fLine.className = "flex items-center gap-2 font-mono text-[11px] p-1.5 rounded bg-blue-50 border border-blue-200 text-blue-900 font-bold shadow-sm";
+                            } else {
+                                fLine.className = "flex items-center gap-2 font-mono text-[11px] p-1.5 text-slate-600";
+                            }
+
+                            let info = ` đi <span class="font-bold text-indigo-600">${f.action}</span> ➔ h = ${fH}`;
+                            if (isChosen) {
+                                info += ` <span class="text-blue-600 font-bold ml-3">➔ [CHỌN ĐỂ LEO TIẾP]</span>`;
+                            } else if (fH >= currentH) {
+                                info += ` <span class="text-rose-400 text-[10px] ml-3 font-normal">(Bỏ qua vì h không tốt hơn)</span>`;
+                            } else {
+                                info += ` <span class="text-slate-400 text-[10px] ml-3 font-normal">(Tốt hơn nhưng thuật toán bỏ qua)</span>`;
+                            }
+                            if (f.is_goal) info += ` <span class="text-emerald-600 font-bold ml-1">★ (Goal)</span>`;
+
+                            fLine.innerHTML = `<span class="font-bold text-slate-400 text-sm select-none">{</span>${buildMiniBoardHTML(f.state)}<span class="ml-1">${info}</span><span class="font-bold text-slate-400 text-sm select-none ml-auto">}</span>`;
+                            gridNeighbors.appendChild(fLine);
+                        });
+                        col2.appendChild(gridNeighbors);
+
+                        if (!nextStepNodeState) {
+                            let localOptimumMsg = document.createElement("div");
+                            if (step.node.state.join(',') === goalState.join(',')) {
+                                localOptimumMsg.className = "text-emerald-600 font-bold text-xs mt-1 border-t border-emerald-100 pt-1 flex items-center gap-1";
+                                localOptimumMsg.innerHTML = "➔ Đã đạt trạng thái Đích thành công!";
+                            } else {
+                                localOptimumMsg.className = "text-rose-600 font-bold text-xs mt-1 border-t border-rose-100 pt-1 flex items-center gap-1";
+                                localOptimumMsg.innerHTML = "⚠ DỪNG THUẬT TOÁN: Đã chạm CỰC TRỊ CỤC BỘ (Local Optimum) - Không còn hướng tốt hơn để leo!";
+                            }
+                            col2.appendChild(localOptimumMsg);
+                        }
+                    }
+                    row.appendChild(col2);
+
+                } else {
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[120px] p-4 flex flex-col gap-2 border-r border-slate-200 flex-shrink-0";
+                    col1.innerHTML = `<span class="font-bold text-blue-600">Node ${step.node.id}</span>${buildMiniBoardHTML(step.node.state)}`;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "w-[480px] p-3 border-r border-slate-200 flex flex-col gap-3 overflow-x-auto flex-shrink-0";
+                    if (step.frontier_added.length === 0) {
+                        col2.innerHTML = `<span class="text-slate-400 italic font-mono px-2">[] (Tập con rỗng / Đã cạn node)</span>`;
+                    } else {
+                        step.frontier_added.forEach(f => {
+                            let fLine = document.createElement("div");
+                            fLine.className = "flex items-center gap-1 font-mono text-[11px] text-slate-700 whitespace-nowrap";
+                            let act = f.action ? f.action : " ";
+                            let pId = f.parent_id ? f.parent_id : " ";
+                            
+                            let metricLog = `g=${f.cost}`;
+                            if (algo.includes("ASTAR")) {
+                                metricLog = `f=${f.cost + calculateDynamicHeuristic(f.state, algo)}`;
+                            } else if (algo.includes("GREEDY")) {
+                                metricLog = `h=${calculateDynamicHeuristic(f.state, algo)}`;
+                            }
+                            
+                            let info = ` , &nbsp;${pId} &nbsp;, &nbsp;${act} &nbsp;, &nbsp;${metricLog} &nbsp;} &nbsp;➔&nbsp; <span class="font-bold text-slate-900">Node ${f.id}</span>`;
+                            if (f.is_goal) info += ` <span class="text-emerald-600 font-bold ml-1">★ (Goal)</span>`;
+                            fLine.innerHTML = `<span class="font-bold text-slate-400 text-sm">{</span>${buildMiniBoardHTML(f.state)}<span>${info}</span>`;
+                            col2.appendChild(fLine);
+                        });
+                    }
+                    row.appendChild(col2);
+
+                    let col3 = document.createElement("div");
+                    col3.className = "flex-1 p-3 flex flex-wrap gap-2 content-start overflow-y-auto max-h-[160px]";
+                    step.reached.forEach(rState => { col3.innerHTML += buildMiniBoardHTML(rState); });
+                    row.appendChild(col3);
+                }
+
+                container.appendChild(row);
+            });
+            document.getElementById("details-modal").classList.remove("hidden");
+        }
+
+        function closeDetailsModal() { document.getElementById("details-modal").classList.add("hidden"); }
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import time
 import heapq
 import random
+import math
 from collections import deque
 from models import Node
 
@@ -86,22 +87,55 @@ class PuzzleSolver:
                 neighbors.append((tuple(new_state), action))
         return neighbors
 
-    def solve(self, start_state, goal_state, algorithm):
+    def solve(self, start_state, goal_state, algorithm, k=2, t=100.0, alpha=0.95):
         self.goal_state = tuple(goal_state)
         start_tuple = tuple(start_state)
-        
+
         if algorithm == "BFS_CHILD":
             return self._bfs_child_search(start_tuple)
+
         elif algorithm == "BFS_EXPAND":
             return self._bfs_expand_search(start_tuple)
+
         elif algorithm == "DFS":
             return self._dfs_search(start_tuple)
+
         elif algorithm == "IDS":
             return self._ids_search(start_tuple)
-        elif algorithm in ["UCS", "GREEDY_MANHATTAN", "GREEDY_MISPLACED", "ASTAR_MANHATTAN", "ASTAR_MISPLACED"]:
+
+        elif algorithm in [
+            "UCS",
+            "GREEDY_MANHATTAN",
+            "GREEDY_MISPLACED",
+            "ASTAR_MANHATTAN",
+            "ASTAR_MISPLACED"
+        ]:
             return self._informed_search(start_tuple, algorithm)
-        elif algorithm in ["HILL_SIMPLE", "HILL_STEEPEST", "HILL_SIMPLE_MISPLACED", "HILL_STEEPEST_MISPLACED", "HILL_FIRST_CHOICE", "HILL_STOCHASTIC", "HILL_RESTART", "LOCAL_BEAM"]:
+
+        elif algorithm == "LOCAL_BEAM":
+            return self._hill_climbing_search(start_tuple, algorithm, k)
+
+        elif algorithm in [
+            "HILL_SIMPLE",
+            "HILL_STEEPEST",
+            "HILL_SIMPLE_MISPLACED",
+            "HILL_STEEPEST_MISPLACED",
+            "HILL_FIRST_CHOICE",
+            "HILL_STOCHASTIC",
+            "HILL_RESTART"
+        ]:
             return self._hill_climbing_search(start_tuple, algorithm)
+
+        elif algorithm == "SIMULATED_ANNEALING":
+            return self._simulated_annealing_search(start_tuple, t, alpha)
+
+        else:
+            return {
+                "success": False,
+                "history": [],
+                "time": 0,
+                "error": f"Unknown algorithm: {algorithm}"
+        }
 
     # --- 1. BFS CÁCH 1: CHILD-NODE APPROACH ---
     def _bfs_child_search(self, start_state):
@@ -365,7 +399,7 @@ class PuzzleSolver:
         return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
 
     # --- 6. HÀM CHUNG CHO CÁC THUẬT TOÁN LEO ĐỒI & LOCAL BEAM ---
-    def _hill_climbing_search(self, start_state, algorithm):
+    def _hill_climbing_search(self, start_state, algorithm, k=2):
         start_time = time.time()
         node_counter = 0
         reached_list = [start_state]
@@ -373,69 +407,120 @@ class PuzzleSolver:
 
         # --- BIẾN THỂ LOCAL BEAM SEARCH (k=2) ---
         if algorithm == "LOCAL_BEAM":
-            k = 2
             current_states = [start_state]
+
             for _ in range(k - 1):
                 current_states.append(self._generate_solvable_state(base_state=start_state, steps=3))
 
             current_nodes = []
+            seen_init = set()
+
             for s in current_states:
-                current_nodes.append(Node(s, node_id=self._get_node_letter(node_counter)))
-                node_counter += 1
-                if s not in reached_list: reached_list.append(s)
+                if s not in seen_init:
+                    seen_init.add(s)
+                    current_nodes.append(Node(s, node_id=self._get_node_letter(node_counter)))
+                    node_counter += 1
+                    if s not in reached_list:
+                        reached_list.append(s)
 
             step_count = 0
-            while step_count < 100:
-                best_current_node = min(current_nodes, key=lambda n: self.heuristic_manhattan(n.state))
-                
+            max_steps = 100
+
+            while step_count < max_steps:
+                best_current_node = min(
+                    current_nodes,
+                    key=lambda n: self.heuristic_manhattan(n.state)
+                )
+
                 if best_current_node.state == self.goal_state:
                     history_logs.append({
-                        "node": {"id": best_current_node.node_id, "state": best_current_node.state, "action": "Goal Found"},
-                        "frontier_added": [], "reached": list(reached_list)
+                        "node": {
+                            "id": best_current_node.node_id,
+                            "state": best_current_node.state,
+                            "action": "Goal Found"
+                        },
+                        "frontier_added": [],
+                        "reached": list(reached_list)
                     })
-                    return {"success": True, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+                    return {
+                        "success": True,
+                        "history": history_logs,
+                        "time": round((time.time() - start_time) * 1000, 2)
+                    }
 
                 all_successors = []
                 frontier_snapshot = []
 
                 for c_node in current_nodes:
-                    neighbors = self.get_neighbors(c_node.state)
-                    for next_state, action in neighbors:
-                        child_node = Node(next_state, c_node, action, c_node.cost + 1, c_node.depth + 1, self._get_node_letter(node_counter))
+                    for next_state, action in self.get_neighbors(c_node.state):
+                        child_node = Node(
+                            next_state,
+                            c_node,
+                            action,
+                            c_node.cost + 1,
+                            c_node.depth + 1,
+                            self._get_node_letter(node_counter)
+                        )
                         node_counter += 1
-                        if next_state not in reached_list: reached_list.append(next_state)
+
+                        if next_state not in reached_list:
+                            reached_list.append(next_state)
+
                         all_successors.append(child_node)
-                        
+
                         frontier_snapshot.append({
-                            "state": next_state, "parent_id": c_node.node_id,
-                            "action": f"{c_node.node_id}➔{action}", "cost": child_node.cost, "id": child_node.node_id, "is_goal": (next_state == self.goal_state)
+                            "state": next_state,
+                            "parent_id": c_node.node_id,
+                            "action": f"{c_node.node_id}➔{action}",
+                            "cost": child_node.cost,
+                            "id": child_node.node_id,
+                            "is_goal": next_state == self.goal_state
                         })
 
                 history_logs.append({
-                    "node": {"id": best_current_node.node_id, "state": best_current_node.state, "action": f"Beam Step {step_count+1}"},
-                    "frontier_added": frontier_snapshot, "reached": list(reached_list)
+                    "node": {
+                        "id": best_current_node.node_id,
+                        "state": best_current_node.state,
+                        "action": f"Beam Step {step_count + 1}"
+                    },
+                    "frontier_added": frontier_snapshot,
+                    "reached": list(reached_list)
                 })
 
                 goal_nodes = [n for n in all_successors if n.state == self.goal_state]
                 if goal_nodes:
                     current_nodes = [goal_nodes[0]]
+                    step_count += 1
                     continue
 
                 all_successors.sort(key=lambda n: self.heuristic_manhattan(n.state))
+
                 unique_nodes = []
                 seen_states = set()
+
                 for n in all_successors:
                     if n.state not in seen_states:
                         seen_states.add(n.state)
                         unique_nodes.append(n)
-                    if len(unique_nodes) == k: break
 
-                if not unique_nodes or self.heuristic_manhattan(unique_nodes[0].state) >= self.heuristic_manhattan(best_current_node.state):
-                    return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+                    if len(unique_nodes) == k:
+                        break
+
+                if not unique_nodes:
+                    return {
+                        "success": False,
+                        "history": history_logs,
+                        "time": round((time.time() - start_time) * 1000, 2)
+                    }
 
                 current_nodes = unique_nodes
                 step_count += 1
-            return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+            return {
+                "success": False,
+                "history": history_logs,
+                "time": round((time.time() - start_time) * 1000, 2)
+            }
 
         # --- CÁC BIẾN THỂ LEO ĐỒI CÒN LẠI ---
         current_node = Node(start_state, node_id=self._get_node_letter(node_counter))
@@ -504,3 +589,56 @@ class PuzzleSolver:
                     return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
                 
             current_node = next_chosen_node
+            
+    def _simulated_annealing_search(self, start_state, T=100.0, alpha=0.95):
+        start_time = time.time()
+        current_node = Node(start_state, node_id="Start")
+        current_h = self.heuristic_manhattan(current_node.state)
+        
+        history_logs = []
+        T_min = 0.01 
+        step_count = 0
+        
+        # Lưu trạng thái ban đầu
+        history_logs.append({
+            "node": {"id": "Start", "state": current_node.state, "action": "Start"},
+            "temp": round(T, 2),
+            "delta": 0,
+            "accepted": True,
+            "frontier_added": [], 
+            "reached": [list(current_node.state)]
+        })
+        
+        while T > T_min:
+            if current_node.state == self.goal_state:
+                break
+                
+            # Lấy các trạng thái láng giềng (đúng tên hàm là get_neighbors)
+            neighbors = self.get_neighbors(current_node.state)
+            if not neighbors: break
+                
+            # Chọn ngẫu nhiên 1 láng giềng
+            next_state, action = random.choice(neighbors)
+            next_h = self.heuristic_manhattan(next_state)
+            
+            delta = next_h - current_h
+            accepted = (delta < 0) or (random.random() < math.exp(-delta / T))
+            
+            if accepted:
+                current_node = Node(next_state, current_node, action, 
+                                   cost=current_node.cost + 1, node_id=self._get_node_letter(step_count))
+                current_h = next_h
+            
+            T *= alpha
+            step_count += 1
+            
+            history_logs.append({
+                "node": {"id": str(step_count), "state": current_node.state, "action": action},
+                "temp": round(T, 2),
+                "delta": round(delta, 2),
+                "accepted": accepted,
+                "frontier_added": [],
+                "reached": [list(current_node.state)]
+            })
+            
+        return {"success": (current_node.state == self.goal_state), "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}

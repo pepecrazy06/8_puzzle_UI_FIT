@@ -4,6 +4,7 @@ import random
 import math
 from collections import deque
 from models import Node
+from itertools import permutations
 
 class PuzzleSolver:
     def __init__(self):
@@ -93,49 +94,22 @@ class PuzzleSolver:
 
         if algorithm == "BFS_CHILD":
             return self._bfs_child_search(start_tuple)
-
         elif algorithm == "BFS_EXPAND":
             return self._bfs_expand_search(start_tuple)
-
         elif algorithm == "DFS":
             return self._dfs_search(start_tuple)
-
         elif algorithm == "IDS":
             return self._ids_search(start_tuple)
-
-        elif algorithm in [
-            "UCS",
-            "GREEDY_MANHATTAN",
-            "GREEDY_MISPLACED",
-            "ASTAR_MANHATTAN",
-            "ASTAR_MISPLACED"
-        ]:
+        elif algorithm in ["UCS", "GREEDY_MANHATTAN", "GREEDY_MISPLACED", "ASTAR_MANHATTAN", "ASTAR_MISPLACED"]:
             return self._informed_search(start_tuple, algorithm)
-
         elif algorithm == "LOCAL_BEAM":
             return self._hill_climbing_search(start_tuple, algorithm, k)
-
-        elif algorithm in [
-            "HILL_SIMPLE",
-            "HILL_STEEPEST",
-            "HILL_SIMPLE_MISPLACED",
-            "HILL_STEEPEST_MISPLACED",
-            "HILL_FIRST_CHOICE",
-            "HILL_STOCHASTIC",
-            "HILL_RESTART"
-        ]:
+        elif algorithm in ["HILL_SIMPLE", "HILL_STEEPEST", "HILL_SIMPLE_MISPLACED", "HILL_STEEPEST_MISPLACED", "HILL_FIRST_CHOICE", "HILL_STOCHASTIC", "HILL_RESTART"]:
             return self._hill_climbing_search(start_tuple, algorithm)
-
         elif algorithm == "SIMULATED_ANNEALING":
             return self._simulated_annealing_search(start_tuple, t, alpha)
-
         else:
-            return {
-                "success": False,
-                "history": [],
-                "time": 0,
-                "error": f"Unknown algorithm: {algorithm}"
-        }
+            return {"success": False, "history": [], "time": 0, "error": f"Unknown algorithm: {algorithm}"}
 
     # --- 1. BFS CÁCH 1: CHILD-NODE APPROACH ---
     def _bfs_child_search(self, start_state):
@@ -408,119 +382,67 @@ class PuzzleSolver:
         # --- BIẾN THỂ LOCAL BEAM SEARCH (k=2) ---
         if algorithm == "LOCAL_BEAM":
             current_states = [start_state]
-
             for _ in range(k - 1):
                 current_states.append(self._generate_solvable_state(base_state=start_state, steps=3))
 
             current_nodes = []
-            seen_init = set()
-
             for s in current_states:
-                if s not in seen_init:
-                    seen_init.add(s)
-                    current_nodes.append(Node(s, node_id=self._get_node_letter(node_counter)))
-                    node_counter += 1
-                    if s not in reached_list:
-                        reached_list.append(s)
+                current_nodes.append(Node(s, node_id=self._get_node_letter(node_counter)))
+                node_counter += 1
+                if s not in reached_list: reached_list.append(s)
 
             step_count = 0
-            max_steps = 100
-
-            while step_count < max_steps:
-                best_current_node = min(
-                    current_nodes,
-                    key=lambda n: self.heuristic_manhattan(n.state)
-                )
-
+            while step_count < 100:
+                best_current_node = min(current_nodes, key=lambda n: self.heuristic_manhattan(n.state))
+                
                 if best_current_node.state == self.goal_state:
                     history_logs.append({
-                        "node": {
-                            "id": best_current_node.node_id,
-                            "state": best_current_node.state,
-                            "action": "Goal Found"
-                        },
-                        "frontier_added": [],
-                        "reached": list(reached_list)
+                        "node": {"id": best_current_node.node_id, "state": best_current_node.state, "action": "Goal Found"},
+                        "frontier_added": [], "reached": list(reached_list)
                     })
-                    return {
-                        "success": True,
-                        "history": history_logs,
-                        "time": round((time.time() - start_time) * 1000, 2)
-                    }
+                    return {"success": True, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
 
                 all_successors = []
                 frontier_snapshot = []
 
                 for c_node in current_nodes:
-                    for next_state, action in self.get_neighbors(c_node.state):
-                        child_node = Node(
-                            next_state,
-                            c_node,
-                            action,
-                            c_node.cost + 1,
-                            c_node.depth + 1,
-                            self._get_node_letter(node_counter)
-                        )
+                    neighbors = self.get_neighbors(c_node.state)
+                    for next_state, action in neighbors:
+                        child_node = Node(next_state, c_node, action, c_node.cost + 1, c_node.depth + 1, self._get_node_letter(node_counter))
                         node_counter += 1
-
-                        if next_state not in reached_list:
-                            reached_list.append(next_state)
-
+                        if next_state not in reached_list: reached_list.append(next_state)
                         all_successors.append(child_node)
-
+                        
                         frontier_snapshot.append({
-                            "state": next_state,
-                            "parent_id": c_node.node_id,
-                            "action": f"{c_node.node_id}➔{action}",
-                            "cost": child_node.cost,
-                            "id": child_node.node_id,
-                            "is_goal": next_state == self.goal_state
+                            "state": next_state, "parent_id": c_node.node_id,
+                            "action": f"{c_node.node_id}➔{action}", "cost": child_node.cost, "id": child_node.node_id, "is_goal": (next_state == self.goal_state)
                         })
 
                 history_logs.append({
-                    "node": {
-                        "id": best_current_node.node_id,
-                        "state": best_current_node.state,
-                        "action": f"Beam Step {step_count + 1}"
-                    },
-                    "frontier_added": frontier_snapshot,
-                    "reached": list(reached_list)
+                    "node": {"id": best_current_node.node_id, "state": best_current_node.state, "action": f"Beam Step {step_count+1}"},
+                    "frontier_added": frontier_snapshot, "reached": list(reached_list)
                 })
 
                 goal_nodes = [n for n in all_successors if n.state == self.goal_state]
                 if goal_nodes:
                     current_nodes = [goal_nodes[0]]
-                    step_count += 1
                     continue
 
                 all_successors.sort(key=lambda n: self.heuristic_manhattan(n.state))
-
-                unique_nodes = []
+                unique_nodes = all_successors[:k]
                 seen_states = set()
-
                 for n in all_successors:
                     if n.state not in seen_states:
                         seen_states.add(n.state)
                         unique_nodes.append(n)
+                    if len(unique_nodes) == k: break
 
-                    if len(unique_nodes) == k:
-                        break
-
-                if not unique_nodes:
-                    return {
-                        "success": False,
-                        "history": history_logs,
-                        "time": round((time.time() - start_time) * 1000, 2)
-                    }
+                if not unique_nodes or self.heuristic_manhattan(unique_nodes[0].state) >= self.heuristic_manhattan(best_current_node.state):
+                    return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
 
                 current_nodes = unique_nodes
                 step_count += 1
-
-            return {
-                "success": False,
-                "history": history_logs,
-                "time": round((time.time() - start_time) * 1000, 2)
-            }
+            return {"success": False, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
 
         # --- CÁC BIẾN THỂ LEO ĐỒI CÒN LẠI ---
         current_node = Node(start_state, node_id=self._get_node_letter(node_counter))
@@ -642,3 +564,261 @@ class PuzzleSolver:
             })
             
         return {"success": (current_node.state == self.goal_state), "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+    # --- 8. BELIEF STATE SEARCH - COMMON ACTION ---
+    def _normalize_belief_pattern(self, pattern):
+        """Chuyển pattern về list 9 phần tử. Ô chưa biết dùng "?"."""
+        if pattern is None:
+            return ["?"] * 9
+
+        result = []
+        for v in pattern:
+            if v in [None, "", "?", "x", "X", -1, "-1"]:
+                result.append("?")
+            else:
+                result.append(int(v))
+        return result
+
+    def _generate_candidates_from_belief(self, pattern, limit=2):
+        """
+        Từ một pattern có dấu ?, sinh ra các trạng thái cụ thể.
+        Ví dụ: [1,2,3,4,5,6,7,"?",8]
+        -> có thể sinh [1,2,3,4,5,6,7,0,8].
+        """
+        pattern = self._normalize_belief_pattern(pattern)
+
+        if len(pattern) != 9:
+            return []
+
+        fixed_values = [v for v in pattern if v != "?"]
+
+        for v in fixed_values:
+            if v < 0 or v > 8:
+                return []
+
+        if len(set(fixed_values)) != len(fixed_values):
+            return []
+
+        missing_values = [v for v in range(9) if v not in fixed_values]
+        unknown_indexes = [i for i, v in enumerate(pattern) if v == "?"]
+
+        candidates = []
+        seen = set()
+
+        # Nếu quá nhiều ô chưa biết thì sinh ngẫu nhiên để không bị nổ hoán vị.
+        if len(unknown_indexes) >= 7:
+            attempts = 0
+            while len(candidates) < limit and attempts < limit * 200:
+                attempts += 1
+                values = missing_values[:]
+                random.shuffle(values)
+                new_state = pattern[:]
+
+                for idx, value in zip(unknown_indexes, values):
+                    new_state[idx] = value
+
+                state_tuple = tuple(new_state)
+                if state_tuple not in seen:
+                    seen.add(state_tuple)
+                    candidates.append(state_tuple)
+            return candidates
+
+        # Nếu ít ô chưa biết thì sinh theo thứ tự hoán vị.
+        for perm in permutations(missing_values):
+            new_state = pattern[:]
+            for idx, value in zip(unknown_indexes, perm):
+                new_state[idx] = value
+
+            state_tuple = tuple(new_state)
+            if state_tuple not in seen:
+                seen.add(state_tuple)
+                candidates.append(state_tuple)
+
+            if len(candidates) >= limit:
+                break
+
+        return candidates
+
+    def _move_state_belief(self, state, action):
+        """
+        Trong Belief State, một action chung được áp dụng cho mọi trạng thái.
+        Nếu action không hợp lệ với một trạng thái thì trạng thái đó đứng yên.
+        """
+        moved = self._move_state(tuple(state), action)
+        if moved is None:
+            return tuple(state)
+        return moved
+
+    def _belief_goal_test(self, belief_states):
+        """Goal test: tất cả trạng thái trong belief node đều phải bằng goal_state."""
+        for state in belief_states:
+            if tuple(state) != self.goal_state:
+                return False
+        return True
+
+    def _belief_state_key(self, belief_states):
+        """Chuẩn hóa belief node để kiểm tra visited, không phụ thuộc thứ tự state."""
+        return tuple(sorted(tuple(s) for s in belief_states))
+
+    def solve_belief_common_action(self, start_belief, goal_state, max_depth=30):
+        """
+        Belief State Search đúng nghĩa:
+        - 1 node gồm nhiều trạng thái có thể xảy ra.
+        - Mỗi bước chọn 1 action chung.
+        - Action đó áp dụng lên toàn bộ trạng thái trong node.
+        - Thành công khi tất cả trạng thái trong node cùng về goal.
+        """
+        start_time = time.time()
+        self.goal_state = tuple(goal_state)
+
+        start_belief = [tuple(s) for s in start_belief]
+        start_key = self._belief_state_key(start_belief)
+
+        node_counter = 0
+        start_node = {
+            "id": self._get_node_letter(node_counter),
+            "belief_states": start_belief,
+            "parent_id": "",
+            "action": "Start",
+            "cost": 0
+        }
+        node_counter += 1
+
+        frontier = deque([start_node])
+        reached_set = {start_key}
+        reached_list = [[list(s) for s in start_belief]]
+        history_logs = []
+        actions = ["Up", "Down", "Left", "Right"]
+
+        while frontier:
+            current_node = frontier.popleft()
+            current_belief = current_node["belief_states"]
+
+            if self._belief_goal_test(current_belief):
+                history_logs.append({
+                    "belief": True,
+                    "belief_mode": "COMMON_ACTION",
+                    "node": {
+                        "id": current_node["id"],
+                        "states": [list(s) for s in current_belief],
+                        "action": current_node["action"],
+                        "cost": current_node["cost"]
+                    },
+                    "frontier_added": [],
+                    "reached": reached_list,
+                    "status": "GOAL"
+                })
+                return {
+                    "success": True,
+                    "belief": True,
+                    "belief_mode": "COMMON_ACTION",
+                    "history": history_logs,
+                    "time": round((time.time() - start_time) * 1000, 2)
+                }
+
+            if current_node["cost"] >= max_depth:
+                continue
+
+            frontier_snapshot = []
+
+            for action in actions:
+                next_belief = []
+
+                for state in current_belief:
+                    next_state = self._move_state_belief(state, action)
+                    next_belief.append(next_state)
+
+                # Bỏ trùng trạng thái trong cùng belief node.
+                unique_next_belief = []
+                seen_states = set()
+                for s in next_belief:
+                    if s not in seen_states:
+                        seen_states.add(s)
+                        unique_next_belief.append(s)
+
+                next_key = self._belief_state_key(unique_next_belief)
+
+                if next_key not in reached_set:
+                    child_node = {
+                        "id": self._get_node_letter(node_counter),
+                        "belief_states": unique_next_belief,
+                        "parent_id": current_node["id"],
+                        "action": action,
+                        "cost": current_node["cost"] + 1
+                    }
+                    node_counter += 1
+
+                    reached_set.add(next_key)
+                    reached_list.append([[x for x in s] for s in unique_next_belief])
+                    frontier.append(child_node)
+
+                    frontier_snapshot.append({
+                        "id": child_node["id"],
+                        "parent_id": current_node["id"],
+                        "action": action,
+                        "cost": child_node["cost"],
+                        "states": [list(s) for s in unique_next_belief],
+                        "is_goal": self._belief_goal_test(unique_next_belief)
+                    })
+
+            history_logs.append({
+                "belief": True,
+                "belief_mode": "COMMON_ACTION",
+                "node": {
+                    "id": current_node["id"],
+                    "states": [list(s) for s in current_belief],
+                    "action": current_node["action"],
+                    "cost": current_node["cost"]
+                },
+                "frontier_added": frontier_snapshot,
+                "reached": reached_list
+            })
+
+        return {
+            "success": False,
+            "belief": True,
+            "belief_mode": "COMMON_ACTION",
+            "history": history_logs,
+            "time": round((time.time() - start_time) * 1000, 2)
+        }
+
+    def solve_belief_common_from_pattern(self, start_pattern, goal_pattern, max_belief_states=2, max_depth=30):
+        """
+        Nhận Start Belief / Goal Belief dạng pattern có dấu ? từ giao diện,
+        tự sinh ra nhiều trạng thái start, rồi chạy BFS trên belief node.
+        """
+        start_candidates = self._generate_candidates_from_belief(start_pattern, limit=max_belief_states)
+        goal_candidates = self._generate_candidates_from_belief(goal_pattern, limit=1)
+
+        if not start_candidates:
+            return {
+                "success": False,
+                "belief": True,
+                "belief_mode": "COMMON_ACTION",
+                "history": [],
+                "error": "Không sinh được Start Belief từ pattern."
+            }
+
+        if not goal_candidates:
+            return {
+                "success": False,
+                "belief": True,
+                "belief_mode": "COMMON_ACTION",
+                "history": [],
+                "error": "Không sinh được Goal từ pattern."
+            }
+
+        goal_state = goal_candidates[0]
+        result = self.solve_belief_common_action(
+            start_belief=start_candidates,
+            goal_state=goal_state,
+            max_depth=max_depth
+        )
+
+        result["start_belief"] = [list(s) for s in start_candidates]
+        result["goal"] = list(goal_state)
+        result["start_candidates"] = len(start_candidates)
+        result["goal_candidates"] = len(goal_candidates)
+        result["tried_pairs"] = 1
+        return result
+

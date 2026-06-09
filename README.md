@@ -6,7 +6,8 @@
 - GVHD: TS. Phan Thị Huyền Trang 
 - SVTH: Thái Nhựt Huy
 - Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
-- Cập nhật lần cuối: 06/04/2026
+- Cập nhật lần cuối: 09/06/2026
+- Nội dung cập nhật: Update Simuluted Annealling and Belief
 - Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
 # 8-Puzzle Multi-Algorithm AI Search Visualizer
 

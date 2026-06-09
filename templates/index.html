@@ -21,7 +21,7 @@
             <div class="flex flex-grow justify-center items-center my-8">
                 <div id="main-board" class="grid grid-cols-3 gap-4 bg-[#12151e] p-4 rounded-2xl border border-[#334155] shadow-inner w-80 h-80"></div>
             </div>
-            <div class="text-center text-xs text-[#94a3b8]">Ma trận chuyển động mô phỏng thuật toán đang chạy thực tế</div>
+            <div class="text-center text-xs text-[#94a3b8]">Ma trận mô phỏng thuật toán </div>
         </div>
 
         <div class="flex flex-col gap-4 h-full">
@@ -93,6 +93,24 @@
                     <input type="number" id="sa-alpha" step="0.01" value="0.95" class="w-16 bg-[#1a1e29] border border-[#334155] text-xs font-bold text-center text-slate-100 rounded p-1 outline-none focus:border-rose-500">
                 </div>
             </div>
+
+            <div id="belief-container" class="mt-3 p-3 bg-[#12151e] rounded-lg border border-purple-500/30">
+                <label class="text-xs font-semibold text-purple-400 uppercase tracking-wider">Belief State Mode:</label>
+
+                <select id="belief-case" class="mt-2 w-full bg-[#1a1e29] border border-[#334155] text-xs text-slate-200 rounded p-2 outline-none">
+                    <option value="BELIEF_GOAL_ONLY">Case 1: Có Goal, không biết Start</option>
+                    <option value="BELIEF_UNKNOWN_BOTH">Case 2: Không biết Start và Goal</option>
+                    <option value="BELIEF_PARTIAL">Case 3: Biết một phần Start và Goal</option>
+                </select>
+
+                <button onclick="solveBeliefPuzzle()" class="mt-2 w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 rounded-lg cursor-pointer">
+                    ◈ Run Belief Common Action
+                </button>
+
+                <p class="text-[10px] text-slate-400 mt-2">
+                    Nhập các trạng thái bắt đầu và đích vào phần cài đặt ô bên phải. Sử dụng dấu "?" cho các ô không xác định trong Belief State.
+                </p>
+            </div>
         </div>
        
         <div class="flex flex-col gap-2 items-center">
@@ -111,6 +129,8 @@
                 <select id="state-type" onchange="loadStateToInputs()" class="bg-[#12151e] border border-[#334155] text-xs text-slate-300 rounded p-1 cursor-pointer">
                     <option value="start">Mảng bắt đầu</option>
                     <option value="goal">Mảng đích</option>
+                    <option value="start_belief">Start Belief</option>
+                    <option value="goal_belief">Goal Belief</option>
                 </select>
             </div>
             <div class="flex items-center gap-3 w-full justify-end">
@@ -137,6 +157,10 @@
     <script>
         let startState = [1, 2, 3, 4, 0, 6, 7, 5, 8];
         let goalState = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+
+        let startBeliefState = ["?", "?", "?", "?", "?", "?", "?", "?", "?"];
+        let goalBeliefState = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+
         let history = [];
         let currentStep = 0;
         let isPlaying = false;
@@ -186,35 +210,120 @@
             for (let i = 0; i < 9; i++) {
                 let val = state[i];
                 let tile = document.getElementById(`tile-${i}`);
+
                 if (val === 0) {
                     tile.innerText = "";
                     tile.className = "tile-transition flex justify-center items-center text-3xl font-bold rounded-xl shadow-inner bg-[#12151e]";
+                } else if (val === "?" || val === -1) {
+                    tile.innerText = "?";
+                    tile.className = "tile-transition flex justify-center items-center text-3xl font-bold rounded-xl shadow-md border border-purple-500/40 bg-purple-500/20 text-purple-300";
                 } else {
                     tile.innerText = val;
                     tile.className = "tile-transition flex justify-center items-center text-3xl font-bold text-white rounded-xl shadow-md border border-slate-700/30 bg-[#2a3142]";
                 }
             }
+
             let emptyIdx = state.indexOf(0);
-            document.getElementById("lbl-empty").innerText = `(${Math.floor(emptyIdx/3)}, ${emptyIdx%3})`;
+
+            if (emptyIdx === -1) {
+                document.getElementById("lbl-empty").innerText = "Chưa biết";
+            } else {
+                document.getElementById("lbl-empty").innerText = `(${Math.floor(emptyIdx / 3)}, ${emptyIdx % 3})`;
+            }
         }
 
         function loadStateToInputs() {
             let type = document.getElementById("state-type").value;
-            let targetState = (type === "start") ? startState : goalState;
-            for (let i = 0; i < 9; i++) document.getElementById(`input-${i}`).value = targetState[i];
+            let targetState;
+
+            if (type === "start") {
+                targetState = startState;
+            } else if (type === "goal") {
+                targetState = goalState;
+            } else if (type === "start_belief") {
+                targetState = startBeliefState;
+            } else {
+                targetState = goalBeliefState;
+            }
+
+            for (let i = 0; i < 9; i++) {
+                document.getElementById(`input-${i}`).value = targetState[i];
+            }
+
+            drawMainBoard(targetState);
+        }
+
+        function parseStateCell(raw, allowUnknown) {
+            raw = raw.trim();
+
+            if (allowUnknown && (raw === "?" || raw.toLowerCase() === "x" || raw === "-1" || raw === "")) {
+                return "?";
+            }
+
+            let v = parseInt(raw);
+
+            if (isNaN(v) || v < 0 || v > 8) {
+                return null;
+            }
+
+            return v;
         }
 
         function saveStateInputs() {
             let type = document.getElementById("state-type").value;
+            let isBelief = type === "start_belief" || type === "goal_belief";
             let temp = [];
+
             for (let i = 0; i < 9; i++) {
-                let v = parseInt(document.getElementById(`input-${i}`).value);
-                if (isNaN(v) || v < 0 || v > 8) { alert("Vui lòng nhập số từ 0-8!"); return; }
+                let raw = document.getElementById(`input-${i}`).value;
+                let v = parseStateCell(raw, isBelief);
+
+                if (v === null) {
+                    if (isBelief) {
+                        alert("Belief chỉ được nhập số 0-8 hoặc dấu ?!");
+                    } else {
+                        alert("Mảng thường chỉ được nhập số 0-8!");
+                    }
+                    return;
+                }
+
                 temp.push(v);
             }
-            if (new Set(temp).size !== 9) { alert("Mảng không được chứa ký tự trùng lặp!"); return; }
-            if (type === "start") { startState = temp; drawMainBoard(startState); logMsg("Cập nhật Start State."); }
-            else { goalState = temp; logMsg("Cập nhật Goal State."); }
+
+            if (isBelief) {
+                let knownValues = temp.filter(v => v !== "?");
+
+                if (new Set(knownValues).size !== knownValues.length) {
+                    alert("Các số đã biết trong Belief không được trùng nhau!");
+                    return;
+                }
+            } else {
+                if (temp.includes("?")) {
+                    alert("Mảng thường không được chứa dấu ?!");
+                    return;
+                }
+
+                if (new Set(temp).size !== 9) {
+                    alert("Mảng không được chứa ký tự trùng lặp!");
+                    return;
+                }
+            }
+
+            if (type === "start") {
+                startState = temp;
+                logMsg("Cập nhật Start State.");
+            } else if (type === "goal") {
+                goalState = temp;
+                logMsg("Cập nhật Goal State.");
+            } else if (type === "start_belief") {
+                startBeliefState = temp;
+                logMsg("Cập nhật Start Belief.");
+            } else {
+                goalBeliefState = temp;
+                logMsg("Cập nhật Goal Belief.");
+            }
+
+            drawMainBoard(temp);
         }
 
         function logMsg(msg) {
@@ -256,12 +365,85 @@
             .catch(err => { alert("Lỗi kết nối Python Server Backend!"); console.error(err); });
         }
 
+        function solveBeliefPuzzle() {
+            let beliefCase = document.getElementById("belief-case").value;
+
+            document.getElementById("lbl-algo").innerText = "Belief State BFS - Common Action";
+            document.getElementById("lbl-result").innerText = "Đang xử lý Belief State...";
+            document.getElementById("lbl-result").className = "font-bold text-yellow-400";
+
+            logMsg("----- BELIEF STATE COMMON ACTION -----");
+            logMsg(`Case: ${beliefCase}`);
+            logMsg("Mỗi node Belief gồm 2 trạng thái. Một action chung được áp dụng cho cả 2 trạng thái.");
+            logMsg(`Start Belief Pattern: [${startBeliefState.join(", ")}]`);
+            logMsg(`Goal Pattern: [${goalBeliefState.join(", ")}]`);
+
+            fetch("/api/solve-belief-common", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    belief_case: beliefCase,
+                    start_pattern: startBeliefState,
+                    goal_pattern: goalBeliefState,
+                    max_belief_states: 2,
+                    max_depth: 30
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                history = data.history || [];
+                currentStep = 0;
+
+                logMsg(`Start states trong Belief node: ${data.start_candidates || 0}`);
+                logMsg(`Goal candidates: ${data.goal_candidates || 0}`);
+
+                if (data.start_belief) {
+                    data.start_belief.forEach((s, idx) => {
+                        logMsg(`S${idx + 1}: [${s.join(", ")}]`);
+                    });
+                    drawMainBoard(data.start_belief[0]);
+                }
+
+                if (data.goal) {
+                    goalState = data.goal;
+                    logMsg(`Goal được chọn: [${goalState.join(", ")}]`);
+                }
+
+                if (data.error) {
+                    logMsg(`Lỗi: ${data.error}`);
+                }
+
+                if (data.success) {
+                    document.getElementById("lbl-result").innerText = `Belief thành công (${data.time} ms)`;
+                    document.getElementById("lbl-result").className = "font-bold text-green-400";
+                    logMsg(`Belief Common Action chạy xong! Số bước duyệt: ${history.length}`);
+                } else {
+                    document.getElementById("lbl-result").innerText = "Belief dừng / thất bại";
+                    document.getElementById("lbl-result").className = "font-bold text-rose-500";
+                    logMsg("Belief Search không tìm ra chuỗi hành động chung trong giới hạn.");
+                }
+
+                updateStatusPanel();
+            })
+            .catch(err => {
+                alert("Lỗi kết nối Python Server Backend khi chạy Belief State!");
+                console.error(err);
+            });
+        }
+
         function updateStatusPanel() {
             if (!history.length) return;
             let stepData = history[currentStep];
+
             document.getElementById("lbl-step").innerText = `${currentStep + 1} / ${history.length}`;
             document.getElementById("lbl-action").innerText = stepData.node.action ? stepData.node.action : "Start Node";
-            drawMainBoard(stepData.node.state);
+
+            if (stepData.node.states) {
+                document.getElementById("lbl-empty").innerText = `Belief: ${stepData.node.states.length} trạng thái`;
+                drawMainBoard(stepData.node.states[0]);
+            } else {
+                drawMainBoard(stepData.node.state);
+            }
         }
 
         function stepNext() { if (history.length && currentStep < history.length - 1) { currentStep++; updateStatusPanel(); } }
@@ -301,6 +483,18 @@
             return html + `</div>`;
         }
 
+
+        function buildBeliefGroupHTML(states) {
+            let html = `<div class="flex flex-wrap gap-2 items-start">`;
+            states.forEach((state, idx) => {
+                html += `<div class="flex flex-col items-center gap-1 p-1 rounded border border-slate-200 bg-white shadow-sm">
+                    <div class="text-[10px] font-bold text-purple-600">S${idx + 1}</div>
+                    ${buildMiniBoardHTML(state)}
+                </div>`;
+            });
+            return html + `</div>`;
+        }
+
         function calculateDynamicHeuristic(state, mode) {
             const goal = goalState;
             if (mode.includes("MISPLACED")) {
@@ -321,7 +515,7 @@
         }
 
         function openDetailsModal() {
-            if (!history.length) { alert("Vui lòng ấn Run AI Engine trước khi xem bảng không gian!"); return; }
+            if (!history.length) { alert("Vui lòng ấn Run AI Engine hoặc Run Belief Common Action trước khi xem bảng không gian!"); return; }
             
             let algo = document.getElementById("algo-select").value;
             let isHillClimbing = algo.includes("HILL") || algo === "LOCAL_BEAM"; 
@@ -331,6 +525,72 @@
             const headerCols = document.getElementById("modal-header-cols");
             const container = document.getElementById("modal-rows-container");
             container.innerHTML = "";
+
+            let isBeliefCommon = history[0] && history[0].belief_mode === "COMMON_ACTION";
+
+            if (isBeliefCommon) {
+                headerCols.innerHTML = `
+                    <div class="w-[220px] px-4">Current Belief Node</div>
+                    <div class="flex-1 px-2">Frontier: action chung sinh ra các Belief Node mới</div>
+                    <div class="w-[260px] px-2">Reached Belief Nodes</div>
+                `;
+
+                history.forEach((step, index) => {
+                    let row = document.createElement("div");
+                    row.className = "flex items-stretch border-b border-slate-200 text-xs text-slate-800 hover:bg-slate-50 transition-colors";
+
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[220px] p-4 flex flex-col gap-2 border-r border-slate-200 flex-shrink-0";
+                    col1.innerHTML = `
+                        <span class="font-bold text-purple-700">Node ${step.node.id}</span>
+                        <span class="font-mono text-[10px] text-slate-500">Action: ${step.node.action}<br>Cost: ${step.node.cost}</span>
+                        ${buildBeliefGroupHTML(step.node.states)}
+                    `;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "flex-1 p-3 border-r border-slate-200 flex flex-col gap-3 overflow-x-auto";
+
+                    if (!step.frontier_added || step.frontier_added.length === 0) {
+                        if (step.status === "GOAL") {
+                            col2.innerHTML = `<span class="text-emerald-600 font-bold">★ Tất cả trạng thái trong Belief Node đã cùng đến GOAL</span>`;
+                        } else {
+                            col2.innerHTML = `<span class="text-slate-400 italic font-mono px-2">[] Không sinh thêm node</span>`;
+                        }
+                    } else {
+                        step.frontier_added.forEach(f => {
+                            let line = document.createElement("div");
+                            line.className = "p-2 rounded border border-slate-200 bg-slate-50 flex flex-col gap-1";
+                            line.innerHTML = `
+                                <div class="font-mono text-[11px] text-slate-700">
+                                    { parent: ${f.parent_id}, action chung: <span class="font-bold text-indigo-600">${f.action}</span>, cost: ${f.cost} } ➔
+                                    <span class="font-bold text-slate-900">Node ${f.id}</span>
+                                    ${f.is_goal ? '<span class="text-emerald-600 font-bold ml-2">★ GOAL</span>' : ''}
+                                </div>
+                                ${buildBeliefGroupHTML(f.states)}
+                            `;
+                            col2.appendChild(line);
+                        });
+                    }
+                    row.appendChild(col2);
+
+                    let col3 = document.createElement("div");
+                    col3.className = "w-[260px] p-3 flex flex-col gap-2 overflow-y-auto max-h-[220px] flex-shrink-0";
+                    let reachedToShow = (step.reached || []).slice(-4);
+                    reachedToShow.forEach((beliefNode, rIdx) => {
+                        col3.innerHTML += `<div class="border border-slate-200 rounded p-1 bg-white">
+                            <div class="text-[10px] font-bold text-slate-500 mb-1">Reached ${Math.max(1, (step.reached || []).length - reachedToShow.length + rIdx + 1)}</div>
+                            ${buildBeliefGroupHTML(beliefNode)}
+                        </div>`;
+                    });
+                    row.appendChild(col3);
+
+                    container.appendChild(row);
+                });
+
+                document.getElementById("details-modal").classList.remove("hidden");
+                return;
+            }
 
             if (isSA) {
                 // 1. Giao diện cho Simulated Annealing

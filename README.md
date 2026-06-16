@@ -6,8 +6,8 @@
 - GVHD: TS. Phan Thị Huyền Trang 
 - SVTH: Thái Nhựt Huy
 - Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
-- Cập nhật lần cuối: 09/06/2026
-- Nội dung cập nhật: Update Simuluted Annealling and Belief
+- Cập nhật lần cuối: 16/06/2026
+- Nội dung cập nhật: Update AND-OR Graph Search, Backtracking Search(hiện tại limit=6), Forward Checking
 - Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
 # 8-Puzzle Multi-Algorithm AI Search Visualizer
 
@@ -55,7 +55,7 @@ Dự án mô phỏng và trực quan hóa quá trình giải bài toán **8-Puzz
 
 ```bash
 git clone <https://github.com/pepecrazy06/8_puzzle_UI_FIT>
-cd 8-puzzle-ai-visualizer
+cd 8_puzzle_UI_FIT
 ```
 
 ### Bước 2: Tạo môi trường ảo
@@ -125,6 +125,7 @@ http://127.0.0.1:5000
 - **Iterative Deepening Search (IDS)**
 - **Uniform Cost Search (UCS)**
 - **AND-OR Graph Search**
+
 ### 7.2. Informed Search
 
 - **Greedy Best-First Search - Manhattan Distance**
@@ -142,10 +143,18 @@ http://127.0.0.1:5000
 - **Stochastic Hill Climbing**
 - **Random Restart Hill Climbing**
 - **Local Beam Search**, với `k = 2`
+- **Simulated Annealing**
+
 ### 7.4. Constraint Satisfaction Problem (CSP)
-- **Backtracking Search (Thuật toán quay lui cổ điển)**
+
+- **Backtracking Search** *(Depth Limit = 6)*
 - **Forward Checking**
 
+### 7.5. Belief State Search
+
+- **Belief State Search – Goal Known, Start Unknown**
+- **Belief State Search – Start Unknown, Goal Unknown**
+- **Belief State Search – Partial Observation**
 ## 8. Heuristic sử dụng
 
 ### 8.1. Misplaced Tiles

@@ -54,7 +54,7 @@ Dự án mô phỏng và trực quan hóa quá trình giải bài toán **8-Puzz
 ### Bước 1: Tải project về máy
 
 ```bash
-git clone <link-repository>
+git clone <https://github.com/pepecrazy06/8_puzzle_UI_FIT>
 cd 8-puzzle-ai-visualizer
 ```
 
@@ -124,7 +124,7 @@ http://127.0.0.1:5000
 - **Depth-First Search (DFS)**
 - **Iterative Deepening Search (IDS)**
 - **Uniform Cost Search (UCS)**
-
+- **AND-OR Graph Search**
 ### 7.2. Informed Search
 
 - **Greedy Best-First Search - Manhattan Distance**
@@ -142,6 +142,9 @@ http://127.0.0.1:5000
 - **Stochastic Hill Climbing**
 - **Random Restart Hill Climbing**
 - **Local Beam Search**, với `k = 2`
+### 7.4. Constraint Satisfaction Problem (CSP)
+- **Backtracking Search (Thuật toán quay lui cổ điển)**
+- **Forward Checking**
 
 ## 8. Heuristic sử dụng
 

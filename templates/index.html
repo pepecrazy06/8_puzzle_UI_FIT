@@ -58,6 +58,11 @@
                     <option value="DFS">Depth-First Search (DFS)</option>
                     <option value="IDS">Iterative Deepening Search (IDS)</option>
                     <option value="UCS">Uniform Cost Search (UCS)</option>
+                    <option value="AND_OR">AND-OR Graph Search</option>
+                </optgroup>
+                <optgroup label="Constraint Satisfaction Problem (CSP)">
+                    <option value="BACKTRACKING">Backtracking Search</option>
+                    <option value="FORWARD_CHECKING">Forward Checking</option>
                 </optgroup>
                 <optgroup label="Informed Search (Ước lượng Heuristic)">
                     <option value="GREEDY_MANHATTAN">Greedy Best-First (Manhattan)</option>
@@ -527,6 +532,133 @@
             container.innerHTML = "";
 
             let isBeliefCommon = history[0] && history[0].belief_mode === "COMMON_ACTION";
+
+            let isBacktracking = (algo === "BACKTRACKING" || algo === "FORWARD_CHECKING");
+            let isFC = (algo === "FORWARD_CHECKING");
+
+            // --- GIAO DIỆN RIÊNG CHO BACKTRACKING & FORWARD CHECKING (CSP) ---
+            if (isBacktracking) {
+                headerCols.innerHTML = `
+                    <div class="w-[200px] px-4 flex flex-col">
+                        <span class="text-sm">Biến (X) & Giá trị thử</span>
+                        <span class="text-[10px] text-slate-500 font-normal">X: Nút hiện tại | Thử gán d ∈ D</span>
+                    </div>
+                    <div class="flex-1 px-4 flex flex-col">
+                        <span class="text-sm">Kiểm tra Ràng buộc (C) & Sinh Miền (D)</span>
+                        <span class="text-[10px] text-slate-500 font-normal">C: Di chuyển hợp lệ, không lặp trạng thái</span>
+                    </div>
+                    <div class="w-[260px] px-2 flex flex-col">
+                        <span class="text-sm">Lịch sử Assignment</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Các trạng thái đã gán</span>
+                    </div>
+                `;
+
+                let fcNotice = isFC ? `<br><div class="mt-1 py-1 px-2 bg-rose-100 border border-rose-300 rounded font-bold text-rose-700 inline-block w-max text-[10px]">👁 Forward Checking: Sẽ nhìn trước 1 bước, nếu miền tương lai rỗng ➔ Cắt tỉa ngay!</div>` : "";
+
+                let row0 = document.createElement("div");
+                row0.className = "flex items-center border-b-2 border-indigo-200 bg-indigo-50/50 p-4 shadow-sm";
+                row0.innerHTML = `
+                    <div class="w-full font-mono text-[12px] flex flex-col gap-1.5 text-slate-700">
+                        <span class="font-bold uppercase text-indigo-700 text-sm mb-1">⚙ Thiết lập Bài toán Thỏa mãn Ràng buộc (CSP):</span>
+                        <span><b class="text-slate-900">X (Tập biến):</b> Trình tự các bước đi cần tìm để đến đích.</span>
+                        <span><b class="text-slate-900">D (Miền giá trị):</b> Các hành động di chuyển { Up, Down, Left, Right }.</span>
+                        <span><b class="text-slate-900">C (Ràng buộc):</b> Ô trống không văng khỏi lưới 3x3 & Không lặp lại nhánh đã đi.</span>
+                        <div class="mt-1 py-1.5 px-3 bg-amber-100 border border-amber-300 rounded font-bold text-amber-800 inline-block w-max text-[11px]">
+                            ➔ Khởi tạo: Assignment = { } (Rỗng)
+                        </div>
+                        ${fcNotice}
+                    </div>
+                `;
+                container.appendChild(row0);
+
+                history.forEach((step, index) => {
+                    let row = document.createElement("div");
+                    row.className = "flex items-stretch border-b border-slate-200 text-xs text-slate-800 hover:bg-slate-50 transition-colors";
+
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[200px] p-4 flex flex-col gap-2 border-r border-slate-200 flex-shrink-0 bg-white";
+                    col1.innerHTML = `
+                        <span class="font-bold text-slate-700">Bước ${index + 1}</span>
+                        <div class="p-2 bg-slate-100 rounded border border-slate-200 text-[10px] font-mono">
+                            Chọn X = Nút ${step.node.id}<br>
+                            Thử gán d = <b class="text-indigo-600">${step.node.action || "Start State"}</b>
+                        </div>
+                        <div class="flex justify-center mt-1">${buildMiniBoardHTML(step.node.state)}</div>
+                    `;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "flex-1 p-4 border-r border-slate-200 flex flex-col gap-2 justify-center";
+                    
+                    if (step.frontier_added.length === 0) {
+                        let isGoal = step.node.state.join(',') === goalState.join(',');
+                        if (isGoal || step.status === "GOAL") {
+                            col2.innerHTML = `
+                                <div class="bg-emerald-100 border border-emerald-300 p-3 rounded-lg flex items-center gap-2">
+                                    <span class="text-emerald-700 font-bold text-sm">★ Thỏa mãn mọi ràng buộc (GOAL) ➔ KẾT THÚC ASSIGNMENT!</span>
+                                </div>`;
+                        } else {
+                            col2.innerHTML = `
+                                <div class="bg-rose-50 border border-rose-200 p-2 rounded flex flex-col gap-1">
+                                    <span class="text-rose-600 font-bold text-[12px]">⚠ Vi phạm ràng buộc (C):</span>
+                                    <span class="text-slate-600 text-[11px] font-mono">- Trạng thái lặp lại, hoặc chạm giới hạn độ sâu.</span>
+                                    <span class="text-rose-700 font-bold text-[12px] mt-1">➔ Quay lui (Backtrack), gỡ bỏ gán hiện tại!</span>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        let domainStr = `
+                            <span class="text-emerald-600 font-bold text-[11px] mb-1">✓ Thỏa mãn (C). Cập nhật miền (D) hợp lệ tiếp theo:</span>
+                            <div class="flex flex-wrap gap-3 mt-1">
+                        `;
+                        step.frontier_added.forEach(f => {
+                            if (f.fc_status === "PRUNED") {
+                                domainStr += `
+                                    <div class="flex flex-col items-center p-1.5 border border-orange-200 rounded bg-orange-50/50 opacity-60">
+                                        <span class="text-[10px] font-mono text-orange-700 font-bold mb-1 line-through">d = ${f.action}</span>
+                                        ${buildMiniBoardHTML(f.state)}
+                                        <span class="text-[9px] text-orange-700 font-bold mt-1 text-center leading-tight">Miền rỗng!<br>(FC Pruned)</span>
+                                    </div>
+                                `;
+                            } else {
+                                domainStr += `
+                                    <div class="flex flex-col items-center p-1.5 border border-indigo-100 rounded bg-indigo-50/30">
+                                        <span class="text-[10px] font-mono text-indigo-700 font-bold mb-1">d = ${f.action}</span>
+                                        ${buildMiniBoardHTML(f.state)}
+                                    </div>
+                                `;
+                            }
+                        });
+                        domainStr += `</div>`;
+                        col2.innerHTML = domainStr;
+                    }
+                    row.appendChild(col2);
+
+                    let col3 = document.createElement("div");
+                    col3.className = "w-[260px] p-3 flex flex-wrap gap-2 content-start overflow-y-auto max-h-[160px] bg-slate-50/50";
+                    let reachedToShow = (step.reached || []).slice(-4);
+                    
+                    if (step.reached.length > 4) {
+                        col3.innerHTML = `<div class="w-full text-[10px] text-slate-400 italic mb-1 border-b border-slate-200 pb-1">... và ${step.reached.length - 4} state gán trước đó</div>`;
+                    } else {
+                        col3.innerHTML = `<div class="w-full text-[10px] text-slate-400 italic mb-1 border-b border-slate-200 pb-1">Trình tự gán:</div>`;
+                    }
+
+                    reachedToShow.forEach((rState, rIdx) => {
+                        let isLatest = (rIdx === reachedToShow.length - 1);
+                        col3.innerHTML += `
+                        <div class="flex flex-col items-center ${isLatest ? 'opacity-100 ring-2 ring-indigo-400 rounded bg-white p-0.5' : 'opacity-50'}">
+                            ${buildMiniBoardHTML(rState)}
+                        </div>`;
+                    });
+                    
+                    row.appendChild(col3);
+                    container.appendChild(row);
+                });
+
+                document.getElementById("details-modal").classList.remove("hidden");
+                return;
+            }
 
             if (isBeliefCommon) {
                 headerCols.innerHTML = `

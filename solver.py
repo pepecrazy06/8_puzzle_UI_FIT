@@ -100,6 +100,10 @@ class PuzzleSolver:
             return self._dfs_search(start_tuple)
         elif algorithm == "IDS":
             return self._ids_search(start_tuple)
+        elif algorithm == "BACKTRACKING":               
+            return self._backtracking_search(start_tuple) 
+        elif algorithm == "AND_OR":                      
+            return self._and_or_search(start_tuple)
         elif algorithm in ["UCS", "GREEDY_MANHATTAN", "GREEDY_MISPLACED", "ASTAR_MANHATTAN", "ASTAR_MISPLACED"]:
             return self._informed_search(start_tuple, algorithm)
         elif algorithm == "LOCAL_BEAM":
@@ -821,4 +825,149 @@ class PuzzleSolver:
         result["goal_candidates"] = len(goal_candidates)
         result["tried_pairs"] = 1
         return result
+   # --- 9. THUẬT TOÁN BACKTRACKING (GIỚI HẠN 6 BƯỚC) ---
+    def _backtracking_search(self, start_state, max_depth=6):
+        start_time = time.time()
+        history_logs = []
+        node_counter = [0]
+        reached_list = [start_state]
+        
+        # BỘ NHỚ: Lưu độ sâu tốt nhất (nông nhất) mà ta từng ghé thăm state này
+        visited_depth = {}
 
+        def recursive_backtrack(current_node, path_states):
+            # CẮT TỈA NHÁNH (Pruning)
+            if current_node.state in visited_depth and visited_depth[current_node.state] <= current_node.depth:
+                return False
+            visited_depth[current_node.state] = current_node.depth
+
+            if current_node.state == self.goal_state:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [{"is_goal": True, "state": current_node.state, "id": current_node.node_id, "parent_id": current_node.parent.node_id if current_node.parent else "", "action": "", "cost": current_node.cost}],
+                    "reached": list(reached_list)
+                })
+                return True
+
+            # GIỚI HẠN ĐỘ SÂU 6 BƯỚC
+            if current_node.depth >= max_depth:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [], "reached": list(reached_list)
+                })
+                return False
+
+            children_snapshot = []
+            children_nodes = []
+            
+            for next_state, action in self.get_neighbors(current_node.state):
+                if next_state not in path_states:
+                    child = Node(next_state, current_node, action, current_node.cost + 1, current_node.depth + 1, self._get_node_letter(node_counter[0]))
+                    node_counter[0] += 1
+                    children_nodes.append(child)
+                    children_snapshot.append({
+                        "state": next_state, "parent_id": current_node.node_id,
+                        "action": action, "cost": child.cost, "id": child.node_id, "is_goal": (next_state == self.goal_state)
+                    })
+
+            history_logs.append({
+                "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                "frontier_added": children_snapshot, "reached": list(reached_list)
+            })
+
+            for child in children_nodes:
+                path_states.add(child.state)
+                if child.state not in reached_list: reached_list.append(child.state)
+                
+                if recursive_backtrack(child, path_states):
+                    return True
+                
+                path_states.remove(child.state)
+
+            return False
+
+        start_node = Node(start_state, node_id=self._get_node_letter(node_counter[0]))
+        node_counter[0] += 1
+        path = {start_state}
+
+        success = recursive_backtrack(start_node, path)
+        return {"success": success, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+
+    # --- 10. THUẬT TOÁN AND-OR GRAPH SEARCH (GIỚI HẠN 6 BƯỚC) ---
+    def _and_or_search(self, start_state, max_depth=6):
+        start_time = time.time()
+        history_logs = []
+        node_counter = [0]
+        reached_list = [start_state]
+        
+        # BỘ NHỚ: Lưu các trạng thái đã chắc chắn thất bại để không duyệt lại
+        failed_memo = set()
+
+        def or_search(current_node, path_states):
+            if current_node.state == self.goal_state:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [{"is_goal": True, "state": current_node.state, "id": current_node.node_id, "parent_id": current_node.parent.node_id if current_node.parent else "", "action": "", "cost": current_node.cost}],
+                    "reached": list(reached_list)
+                })
+                return ["Goal"]
+
+            # CẮT TỈA
+            if current_node.state in failed_memo:
+                return "Failure"
+
+            # GIỚI HẠN ĐỘ SÂU 6 BƯỚC
+            if current_node.depth >= max_depth:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [], "reached": list(reached_list)
+                })
+                return "Failure"
+
+            children_snapshot = []
+            action_map = {}
+            for next_state, action in self.get_neighbors(current_node.state):
+                if next_state not in path_states:
+                    child = Node(next_state, current_node, action, current_node.cost + 1, current_node.depth + 1, self._get_node_letter(node_counter[0]))
+                    node_counter[0] += 1
+                    action_map[action] = child
+                    children_snapshot.append({
+                        "state": next_state, "parent_id": current_node.node_id,
+                        "action": f"OR➔{action}", "cost": child.cost, "id": child.node_id, "is_goal": (next_state == self.goal_state)
+                    })
+
+            history_logs.append({
+                "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                "frontier_added": children_snapshot, "reached": list(reached_list)
+            })
+
+            for action, child in action_map.items():
+                path_states.add(child.state)
+                if child.state not in reached_list: reached_list.append(child.state)
+                
+                plan = and_search([child], path_states)
+                
+                if plan != "Failure":
+                    return [action] + plan
+                path_states.remove(child.state)
+
+            failed_memo.add(current_node.state)
+            return "Failure"
+
+        def and_search(nodes, path_states):
+            plans = []
+            for n in nodes:
+                plan = or_search(n, path_states)
+                if plan == "Failure":
+                    return "Failure"
+                plans.extend(plan)
+            return plans
+
+        start_node = Node(start_state, node_id=self._get_node_letter(node_counter[0]))
+        node_counter[0] += 1
+        path = {start_state}
+
+        plan = or_search(start_node, path)
+        success = plan != "Failure"
+        return {"success": success, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}

@@ -102,6 +102,12 @@ class PuzzleSolver:
             return self._ids_search(start_tuple)
         elif algorithm == "BACKTRACKING":               
             return self._backtracking_search(start_tuple) 
+        elif algorithm == "FORWARD_CHECKING":
+            return self._forward_checking_search(start_tuple)
+        elif algorithm == "AC3":
+            return self._ac3_search(start_tuple)
+        elif algorithm == "MIN_CONFLICTS":
+            return self._min_conflicts_search(start_tuple)
         elif algorithm == "AND_OR":                      
             return self._and_or_search(start_tuple)
         elif algorithm in ["UCS", "GREEDY_MANHATTAN", "GREEDY_MISPLACED", "ASTAR_MANHATTAN", "ASTAR_MISPLACED"]:
@@ -971,3 +977,303 @@ class PuzzleSolver:
         plan = or_search(start_node, path)
         success = plan != "Failure"
         return {"success": success, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+    # --- 11. THUẬT TOÁN FORWARD CHECKING (CSP) ---
+    def _forward_checking_search(self, start_state, max_depth=6):
+        start_time = time.time()
+        history_logs = []
+        node_counter = [0]
+        reached_list = [start_state]
+        visited_depth = {}
+
+        def forward_check(state, path):
+            """Nhìn trước tương lai: Trả về True nếu bước tiếp theo vẫn còn ít nhất 1 đường đi hợp lệ"""
+            if state == self.goal_state: return True
+            for next_state, _ in self.get_neighbors(state):
+                if next_state not in path:
+                    return True # Vẫn còn miền giá trị hợp lệ
+            return False # Ngõ cụt, miền tương lai rỗng!
+
+        def recursive_fc(current_node, path_states):
+            if current_node.state in visited_depth and visited_depth[current_node.state] <= current_node.depth:
+                return False
+            visited_depth[current_node.state] = current_node.depth
+
+            if current_node.state == self.goal_state:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [{"is_goal": True, "state": current_node.state, "id": current_node.node_id, "parent_id": current_node.parent.node_id if current_node.parent else "", "action": "", "cost": current_node.cost, "fc_status": "GOAL"}],
+                    "reached": list(reached_list)
+                })
+                return True
+
+            if current_node.depth >= max_depth:
+                history_logs.append({
+                    "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                    "frontier_added": [], "reached": list(reached_list)
+                })
+                return False
+
+            children_snapshot = []
+            children_nodes = []
+            
+            for next_state, action in self.get_neighbors(current_node.state):
+                if next_state not in path_states:
+                    # --- BẮT ĐẦU FORWARD CHECKING ---
+                    # Giả định gán next_state, kiểm tra miền D của bước tiếp theo xem có bị rỗng không?
+                    path_states.add(next_state)
+                    has_valid_future = forward_check(next_state, path_states)
+                    path_states.remove(next_state)
+
+                    child = Node(next_state, current_node, action, current_node.cost + 1, current_node.depth + 1, self._get_node_letter(node_counter[0]))
+                    node_counter[0] += 1
+                    
+                    if has_valid_future:
+                        children_nodes.append(child)
+                        children_snapshot.append({
+                            "state": next_state, "parent_id": current_node.node_id,
+                            "action": action, "cost": child.cost, "id": child.node_id, "is_goal": (next_state == self.goal_state),
+                            "fc_status": "VALID"
+                        })
+                    else:
+                        # Bị Forward Checking bắt thóp và cắt tỉa ngay lập tức
+                        children_snapshot.append({
+                            "state": next_state, "parent_id": current_node.node_id,
+                            "action": action, "cost": child.cost, "id": child.node_id, "is_goal": False,
+                            "fc_status": "PRUNED" # Nhãn báo hiệu bị loại bỏ
+                        })
+
+            history_logs.append({
+                "node": {"id": current_node.node_id, "state": current_node.state, "action": current_node.action},
+                "frontier_added": children_snapshot, "reached": list(reached_list)
+            })
+
+            # Chỉ duyệt đệ quy vào những node đã vượt qua màng lọc Forward Checking
+            for child in children_nodes:
+                path_states.add(child.state)
+                if child.state not in reached_list: reached_list.append(child.state)
+                
+                if recursive_fc(child, path_states):
+                    return True
+                
+                path_states.remove(child.state)
+
+            return False
+
+        start_node = Node(start_state, node_id=self._get_node_letter(node_counter[0]))
+        node_counter[0] += 1
+        path = {start_state}
+
+        success = recursive_fc(start_node, path)
+        return {"success": success, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+    # --- 12. THUAT TOAN AC-3 (ARC CONSISTENCY - CSP) ---
+    def _domains_to_display(self, domains):
+        return {f"X{i + 1}": sorted(list(values)) for i, values in enumerate(domains)}
+
+    def _representative_state_from_domains(self, domains):
+        """
+        Chuyen cac mien gia tri thanh mot ma tran dai dien de UI cu van ve duoc board.
+        Uu tien gia tri goal neu mien chua don tri.
+        """
+        state = []
+        used = set()
+
+        for i, values in enumerate(domains):
+            ordered_values = sorted(values)
+            if self.goal_state[i] in values and self.goal_state[i] not in used:
+                chosen = self.goal_state[i]
+            else:
+                chosen = next((v for v in ordered_values if v not in used), ordered_values[0] if ordered_values else 0)
+            state.append(chosen)
+            used.add(chosen)
+
+        return tuple(state)
+
+    def _ac3_search(self, start_state):
+        start_time = time.time()
+        history_logs = []
+
+        # Xi la tung o tren bang 8-puzzle. Mien D(Xi) gom gia tri hien tai va gia tri dich.
+        domains = []
+        for i, current_value in enumerate(start_state):
+            domain = {current_value, self.goal_state[i]}
+            domains.append(domain)
+
+        variables = list(range(9))
+        queue = deque((xi, xj) for xi in variables for xj in variables if xi != xj)
+        reached_list = [start_state]
+        node_counter = 0
+
+        def revise(xi, xj):
+            removed = []
+            for value in sorted(list(domains[xi])):
+                # Rang buoc All-Different: Xi phai co it nhat mot gia tri y trong D(Xj) sao cho value != y.
+                has_support = any(value != other for other in domains[xj])
+                if not has_support:
+                    domains[xi].remove(value)
+                    removed.append(value)
+            return removed
+
+        while queue:
+            xi, xj = queue.popleft()
+            before_domains = self._domains_to_display(domains)
+            removed_values = revise(xi, xj)
+            after_domains = self._domains_to_display(domains)
+
+            state_snapshot = self._representative_state_from_domains(domains)
+            if state_snapshot not in reached_list:
+                reached_list.append(state_snapshot)
+
+            added_arcs = []
+            status = "UNCHANGED"
+
+            if removed_values:
+                status = "REVISED"
+                if not domains[xi]:
+                    status = "FAIL"
+                else:
+                    for xk in variables:
+                        if xk != xi and xk != xj:
+                            queue.append((xk, xi))
+                            added_arcs.append(f"(X{xk + 1}, X{xi + 1})")
+
+            history_logs.append({
+                "csp_type": "AC3",
+                "node": {
+                    "id": self._get_node_letter(node_counter),
+                    "state": state_snapshot,
+                    "action": f"Check arc (X{xi + 1}, X{xj + 1})"
+                },
+                "arc": {"xi": f"X{xi + 1}", "xj": f"X{xj + 1}"},
+                "removed": removed_values,
+                "domains_before": before_domains,
+                "domains_after": after_domains,
+                "queue_added": added_arcs,
+                "queue_size": len(queue),
+                "status": status,
+                "frontier_added": [],
+                "reached": list(reached_list)
+            })
+            node_counter += 1
+
+            if status == "FAIL":
+                return {
+                    "success": False,
+                    "history": history_logs,
+                    "time": round((time.time() - start_time) * 1000, 2),
+                    "error": f"Mien cua X{xi + 1} bi rong sau AC-3."
+                }
+
+        final_state = self._representative_state_from_domains(domains)
+        history_logs.append({
+            "csp_type": "AC3",
+            "node": {
+                "id": self._get_node_letter(node_counter),
+                "state": final_state,
+                "action": "AC-3 finished"
+            },
+            "arc": {"xi": "-", "xj": "-"},
+            "removed": [],
+            "domains_before": self._domains_to_display(domains),
+            "domains_after": self._domains_to_display(domains),
+            "queue_added": [],
+            "queue_size": 0,
+            "status": "DONE",
+            "frontier_added": [],
+            "reached": list(reached_list)
+        })
+
+        return {"success": True, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+    # --- 13. THUAT TOAN MIN-CONFLICTS (CSP LOCAL SEARCH) ---
+    def _min_conflicts_search(self, start_state, max_steps=60):
+        start_time = time.time()
+        current_state = tuple(start_state)
+        reached_list = [current_state]
+        history_logs = []
+        node_counter = 0
+
+        def conflict_count(state):
+            return sum(1 for i, value in enumerate(state) if value != self.goal_state[i])
+
+        for step in range(max_steps + 1):
+            current_conflicts = conflict_count(current_state)
+            current_node_id = self._get_node_letter(node_counter)
+            node_counter += 1
+
+            if current_conflicts == 0:
+                history_logs.append({
+                    "csp_type": "MIN_CONFLICTS",
+                    "node": {
+                        "id": current_node_id,
+                        "state": current_state,
+                        "action": "GOAL"
+                    },
+                    "step": step,
+                    "conflicts": 0,
+                    "conflicted_variables": [],
+                    "chosen_variable": "-",
+                    "chosen_value": "-",
+                    "frontier_added": [],
+                    "reached": list(reached_list),
+                    "status": "GOAL"
+                })
+                return {"success": True, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+
+            conflicted_variables = [i for i, value in enumerate(current_state) if value != self.goal_state[i]]
+            chosen_var = random.choice(conflicted_variables)
+
+            candidates = []
+            for swap_index in range(9):
+                if swap_index == chosen_var:
+                    continue
+
+                candidate = list(current_state)
+                candidate[chosen_var], candidate[swap_index] = candidate[swap_index], candidate[chosen_var]
+                candidate_state = tuple(candidate)
+                candidate_conflicts = conflict_count(candidate_state)
+
+                candidates.append({
+                    "state": candidate_state,
+                    "parent_id": current_node_id,
+                    "action": f"X{chosen_var + 1} swap X{swap_index + 1}",
+                    "cost": step + 1,
+                    "id": self._get_node_letter(node_counter),
+                    "is_goal": candidate_conflicts == 0,
+                    "conflicts": candidate_conflicts,
+                    "swap_with": f"X{swap_index + 1}"
+                })
+                node_counter += 1
+
+            best_conflict = min(item["conflicts"] for item in candidates)
+            best_candidates = [item for item in candidates if item["conflicts"] == best_conflict]
+            chosen_candidate = random.choice(best_candidates)
+            chosen_candidate["chosen"] = True
+
+            history_logs.append({
+                "csp_type": "MIN_CONFLICTS",
+                "node": {
+                    "id": current_node_id,
+                    "state": current_state,
+                    "action": f"Choose X{chosen_var + 1}"
+                },
+                "step": step,
+                "conflicts": current_conflicts,
+                "conflicted_variables": [f"X{i + 1}" for i in conflicted_variables],
+                "chosen_variable": f"X{chosen_var + 1}",
+                "chosen_value": self.goal_state[chosen_var],
+                "frontier_added": candidates,
+                "reached": list(reached_list),
+                "status": "RUNNING"
+            })
+
+            current_state = chosen_candidate["state"]
+            if current_state not in reached_list:
+                reached_list.append(current_state)
+
+        return {
+            "success": False,
+            "history": history_logs,
+            "time": round((time.time() - start_time) * 1000, 2),
+            "error": "Min-Conflicts dung vi cham gioi han max_steps."
+        }

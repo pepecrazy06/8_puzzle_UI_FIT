@@ -63,6 +63,8 @@
                 <optgroup label="Constraint Satisfaction Problem (CSP)">
                     <option value="BACKTRACKING">Backtracking Search</option>
                     <option value="FORWARD_CHECKING">Forward Checking</option>
+                    <option value="AC3">AC-3 Arc Consistency</option>
+                    <option value="MIN_CONFLICTS">Min-Conflicts</option>
                 </optgroup>
                 <optgroup label="Informed Search (Ước lượng Heuristic)">
                     <option value="GREEDY_MANHATTAN">Greedy Best-First (Manhattan)</option>
@@ -500,6 +502,21 @@
             return html + `</div>`;
         }
 
+        function buildDomainsHTML(domains) {
+            let html = `<div class="grid grid-cols-3 gap-1.5 text-[10px] font-mono">`;
+            Object.keys(domains).forEach(name => {
+                const values = domains[name] || [];
+                const isSingle = values.length === 1;
+                html += `
+                    <div class="rounded border ${isSingle ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'} px-2 py-1">
+                        <span class="font-bold text-slate-700">${name}</span>
+                        <span class="${isSingle ? 'text-emerald-700' : 'text-indigo-700'}"> = {${values.join(", ")}}</span>
+                    </div>
+                `;
+            });
+            return html + `</div>`;
+        }
+
         function calculateDynamicHeuristic(state, mode) {
             const goal = goalState;
             if (mode.includes("MISPLACED")) {
@@ -535,6 +552,168 @@
 
             let isBacktracking = (algo === "BACKTRACKING" || algo === "FORWARD_CHECKING");
             let isFC = (algo === "FORWARD_CHECKING");
+            let isAC3 = (algo === "AC3");
+            let isMinConflicts = (algo === "MIN_CONFLICTS");
+
+            // --- GIAO DIỆN RIÊNG CHO AC-3 ---
+            if (isAC3) {
+                headerCols.innerHTML = `
+                    <div class="w-[180px] px-4 flex flex-col">
+                        <span class="text-sm">Arc đang xét</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Remove-First(queue)</span>
+                    </div>
+                    <div class="flex-1 px-4 flex flex-col">
+                        <span class="text-sm">Miền D trước / sau khi revise</span>
+                        <span class="text-[10px] text-slate-500 font-normal">RM-Inconsistent-Values(Xi, Xj)</span>
+                    </div>
+                    <div class="w-[260px] px-2 flex flex-col">
+                        <span class="text-sm">Queue cập nhật</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Các arc được thêm lại</span>
+                    </div>
+                `;
+
+                let row0 = document.createElement("div");
+                row0.className = "flex items-center border-b-2 border-cyan-200 bg-cyan-50/60 p-4";
+                row0.innerHTML = `
+                    <div class="w-full font-mono text-[12px] flex flex-col gap-1.5 text-slate-700">
+                        <span class="font-bold uppercase text-cyan-700 text-sm">Thiết lập AC-3 cho CSP 8-Puzzle:</span>
+                        <span><b>X:</b> 9 biến X1...X9 tương ứng 9 ô trên bảng.</span>
+                        <span><b>D:</b> Mỗi miền ban đầu lấy từ giá trị Start và Goal của ô đó.</span>
+                        <span><b>C:</b> All-Different, hai ô khác nhau không được chứa cùng một số.</span>
+                    </div>
+                `;
+                container.appendChild(row0);
+
+                history.forEach((step, index) => {
+                    let row = document.createElement("div");
+                    row.className = "flex items-stretch border-b border-slate-200 text-xs text-slate-800 hover:bg-slate-50";
+
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[180px] p-4 border-r border-slate-200 flex flex-col gap-2 bg-white";
+                    col1.innerHTML = `
+                        <span class="font-bold text-cyan-700">Bước ${index + 1}</span>
+                        <div class="p-2 rounded bg-slate-100 border border-slate-200 font-mono text-[11px]">
+                            (${step.arc?.xi || "-"}, ${step.arc?.xj || "-"})
+                        </div>
+                        ${buildMiniBoardHTML(step.node.state)}
+                        <span class="text-[10px] font-bold ${step.status === 'REVISED' ? 'text-orange-600' : step.status === 'FAIL' ? 'text-rose-600' : 'text-slate-500'}">${step.status}</span>
+                    `;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "flex-1 p-4 border-r border-slate-200 flex flex-col gap-3";
+                    let removedText = (step.removed && step.removed.length) ? `{${step.removed.join(", ")}}` : "không xóa";
+                    col2.innerHTML = `
+                        <div class="text-[11px] font-mono text-slate-600">
+                            Removed from ${step.arc?.xi || "-"}: <b class="text-orange-600">${removedText}</b>
+                        </div>
+                        <div>
+                            <div class="font-bold text-[11px] text-slate-500 mb-1">Trước revise</div>
+                            ${buildDomainsHTML(step.domains_before || {})}
+                        </div>
+                        <div>
+                            <div class="font-bold text-[11px] text-slate-500 mb-1">Sau revise</div>
+                            ${buildDomainsHTML(step.domains_after || {})}
+                        </div>
+                    `;
+                    row.appendChild(col2);
+
+                    let col3 = document.createElement("div");
+                    col3.className = "w-[260px] p-3 flex flex-col gap-2 bg-slate-50/70";
+                    let added = step.queue_added && step.queue_added.length ? step.queue_added.join(", ") : "Không thêm arc mới";
+                    col3.innerHTML = `
+                        <div class="text-[11px] font-mono text-slate-700 leading-relaxed">${added}</div>
+                        <div class="mt-auto text-[10px] text-slate-500 border-t border-slate-200 pt-2">Queue còn lại: <b>${step.queue_size}</b></div>
+                    `;
+                    row.appendChild(col3);
+
+                    container.appendChild(row);
+                });
+
+                document.getElementById("details-modal").classList.remove("hidden");
+                return;
+            }
+
+            // --- GIAO DIỆN RIÊNG CHO MIN-CONFLICTS ---
+            if (isMinConflicts) {
+                headerCols.innerHTML = `
+                    <div class="w-[190px] px-4 flex flex-col">
+                        <span class="text-sm">Current assignment</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Biến đang xung đột</span>
+                    </div>
+                    <div class="flex-1 px-4 flex flex-col">
+                        <span class="text-sm">Các lựa chọn giảm Conflicts</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Chọn value/state có conflict nhỏ nhất</span>
+                    </div>
+                    <div class="w-[230px] px-2 flex flex-col">
+                        <span class="text-sm">Assignment đã đi qua</span>
+                        <span class="text-[10px] text-slate-500 font-normal">Theo vết local search</span>
+                    </div>
+                `;
+
+                let row0 = document.createElement("div");
+                row0.className = "flex items-center border-b-2 border-violet-200 bg-violet-50/60 p-4";
+                row0.innerHTML = `
+                    <div class="w-full font-mono text-[12px] flex flex-col gap-1.5 text-slate-700">
+                        <span class="font-bold uppercase text-violet-700 text-sm">Thiết lập Min-Conflicts:</span>
+                        <span><b>current:</b> một assignment hoàn chỉnh của 9 ô.</span>
+                        <span><b>conflicted variable:</b> ô đang khác Goal.</span>
+                        <span><b>value:</b> trạng thái sinh bằng cách swap với ô khác, ưu tiên conflict nhỏ nhất.</span>
+                    </div>
+                `;
+                container.appendChild(row0);
+
+                history.forEach((step, index) => {
+                    let row = document.createElement("div");
+                    row.className = "flex items-stretch border-b border-slate-200 text-xs text-slate-800 hover:bg-slate-50";
+
+                    let col1 = document.createElement("div");
+                    col1.className = "w-[190px] p-4 border-r border-slate-200 flex flex-col gap-2 bg-white";
+                    col1.innerHTML = `
+                        <span class="font-bold text-violet-700">Step ${index + 1}</span>
+                        ${buildMiniBoardHTML(step.node.state)}
+                        <div class="font-mono text-[10px] text-slate-600 leading-relaxed">
+                            conflicts = <b class="text-rose-600">${step.conflicts}</b><br>
+                            var = <b class="text-indigo-600">${step.chosen_variable}</b><br>
+                            target value = <b>${step.chosen_value}</b>
+                        </div>
+                    `;
+                    row.appendChild(col1);
+
+                    let col2 = document.createElement("div");
+                    col2.className = "flex-1 p-3 border-r border-slate-200 flex flex-col gap-2";
+                    if (!step.frontier_added || step.frontier_added.length === 0) {
+                        col2.innerHTML = `<div class="bg-emerald-100 border border-emerald-300 text-emerald-700 p-3 rounded-lg font-bold">Goal: không còn biến xung đột.</div>`;
+                    } else {
+                        step.frontier_added.forEach(f => {
+                            let item = document.createElement("div");
+                            item.className = f.chosen
+                                ? "flex items-center gap-2 p-2 rounded bg-violet-50 border border-violet-300 font-mono text-[11px] text-violet-900 font-bold"
+                                : "flex items-center gap-2 p-2 rounded border border-slate-100 font-mono text-[11px] text-slate-600";
+                            item.innerHTML = `
+                                ${buildMiniBoardHTML(f.state)}
+                                <span>${f.action} => conflicts = ${f.conflicts}</span>
+                                ${f.chosen ? '<span class="ml-auto text-violet-700">CHON</span>' : ''}
+                                ${f.is_goal ? '<span class="text-emerald-600 font-bold ml-1">GOAL</span>' : ''}
+                            `;
+                            col2.appendChild(item);
+                        });
+                    }
+                    row.appendChild(col2);
+
+                    let col3 = document.createElement("div");
+                    col3.className = "w-[230px] p-3 flex flex-wrap gap-2 content-start bg-slate-50/70 overflow-y-auto max-h-[180px]";
+                    (step.reached || []).slice(-6).forEach(rState => {
+                        col3.innerHTML += buildMiniBoardHTML(rState);
+                    });
+                    row.appendChild(col3);
+
+                    container.appendChild(row);
+                });
+
+                document.getElementById("details-modal").classList.remove("hidden");
+                return;
+            }
 
             // --- GIAO DIỆN RIÊNG CHO BACKTRACKING & FORWARD CHECKING (CSP) ---
             if (isBacktracking) {

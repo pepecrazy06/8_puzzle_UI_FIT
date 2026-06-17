@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify, render_template
 from solver import PuzzleSolver
 
-app = Flask(__name__, template_folder='.')
+app = Flask(__name__, template_folder='templates')
 solver_ai = PuzzleSolver()
 
 
 @app.route('/')
 def index():
-    return render_template('templates/index.html')
+    return render_template('index.html')
 
 
 @app.route('/api/solve', methods=['POST'])
@@ -40,16 +40,11 @@ def solve_belief_common():
     try:
         data = request.get_json(force=True)
 
-        start_pattern = data.get('start_pattern')
-        goal_pattern = data.get('goal_pattern')
-        max_belief_states = int(data.get('max_belief_states', 2))
-        max_depth = int(data.get('max_depth', 30))
-
         result = solver_ai.solve_belief_common_from_pattern(
-            start_pattern=start_pattern,
-            goal_pattern=goal_pattern,
-            max_belief_states=max_belief_states,
-            max_depth=max_depth
+            start_pattern=data.get('start_pattern'),
+            goal_pattern=data.get('goal_pattern'),
+            max_belief_states=int(data.get('max_belief_states', 2)),
+            max_depth=int(data.get('max_depth', 30))
         )
 
         return jsonify(result)
@@ -65,7 +60,6 @@ def solve_belief_common():
         }), 500
 
 
-# Giữ alias cũ để nếu HTML cũ còn gọi /api/solve-belief thì vẫn chạy.
 @app.route('/api/solve-belief', methods=['POST'])
 def solve_belief_alias():
     try:

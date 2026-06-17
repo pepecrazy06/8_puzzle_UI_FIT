@@ -6,8 +6,8 @@
 - GVHD: TS. Phan Thị Huyền Trang 
 - SVTH: Thái Nhựt Huy
 - Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
-- Cập nhật lần cuối: 16/06/2026
-- Nội dung cập nhật: Update AND-OR Graph Search, Backtracking Search(hiện tại limit=6), Forward Checking
+- Cập nhật lần cuối: 18/06/2026
+- Nội dung cập nhật: Update AC-3 Arc Consistency, Min-Conflicts và Fix lỗi nối option Forward Checking trên giao diện chưa đúng
 - Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
 # 8-Puzzle Multi-Algorithm AI Search Visualizer
 
@@ -149,6 +149,8 @@ http://127.0.0.1:5000
 
 - **Backtracking Search** *(Depth Limit = 6)*
 - **Forward Checking**
+- **AC-3 Arc Consistency**
+- **Min-Conflicts**
 
 ### 7.5. Belief State Search
 

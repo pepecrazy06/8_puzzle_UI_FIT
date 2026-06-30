@@ -2,6 +2,7 @@ import time
 import heapq
 import random
 import math
+import copy
 from collections import deque
 from models import Node
 from itertools import permutations
@@ -100,7 +101,7 @@ class PuzzleSolver:
             return self._dfs_search(start_tuple)
         elif algorithm == "IDS":
             return self._ids_search(start_tuple)
-        elif algorithm == "BACKTRACKING":               
+        elif algorithm == "BACKTRACKING":              
             return self._backtracking_search(start_tuple) 
         elif algorithm == "FORWARD_CHECKING":
             return self._forward_checking_search(start_tuple)
@@ -831,6 +832,7 @@ class PuzzleSolver:
         result["goal_candidates"] = len(goal_candidates)
         result["tried_pairs"] = 1
         return result
+
    # --- 9. THUẬT TOÁN BACKTRACKING (GIỚI HẠN 6 BƯỚC) ---
     def _backtracking_search(self, start_state, max_depth=6):
         start_time = time.time()
@@ -977,6 +979,7 @@ class PuzzleSolver:
         plan = or_search(start_node, path)
         success = plan != "Failure"
         return {"success": success, "history": history_logs, "time": round((time.time() - start_time) * 1000, 2)}
+    
     # --- 11. THUẬT TOÁN FORWARD CHECKING (CSP) ---
     def _forward_checking_search(self, start_state, max_depth=6):
         start_time = time.time()
@@ -1277,3 +1280,371 @@ class PuzzleSolver:
             "time": round((time.time() - start_time) * 1000, 2),
             "error": "Min-Conflicts dung vi cham gioi han max_steps."
         }
+
+
+# =====================================================================
+# --- 14. PHẦN THÊM MỚI DÀNH CHO TRÒ CHƠI XO VÀ THUẬT TOÁN ĐỐI KHÁNG ---
+# =====================================================================
+
+XO_WIN_CONDITIONS = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],  # rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],  # cols
+    [0, 4, 8], [2, 4, 6]              # diagonals
+]
+
+XO_CELL_NAMES = [
+    "R1C1", "R1C2", "R1C3",
+    "R2C1", "R2C2", "R2C3",
+    "R3C1", "R3C2", "R3C3"
+]
+
+
+def check_xo_winner(board):
+    for condition in XO_WIN_CONDITIONS:
+        a, b, c = condition
+        if board[a] != '0' and board[a] == board[b] == board[c]:
+            return board[a]
+    if '0' not in board:
+        return 'Draw'
+    return None
+
+
+def get_empty_cells(board):
+    return [i for i, cell in enumerate(board) if cell == '0']
+
+
+def _xo_terminal_score(board, depth):
+    """Điểm được tính theo góc nhìn của X: X thắng dương, O thắng âm."""
+    winner = check_xo_winner(board)
+    if winner == 'X':
+        return 10 - depth
+    if winner == 'O':
+        return depth - 10
+    if winner == 'Draw':
+        return 0
+    return None
+
+
+def minimax_xo(board, depth, is_max):
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    if is_max:
+        best = -float('inf')
+        for i in get_empty_cells(board):
+            board[i] = 'X'
+            best = max(best, minimax_xo(board, depth + 1, False))
+            board[i] = '0'
+        return best
+
+    best = float('inf')
+    for i in get_empty_cells(board):
+        board[i] = 'O'
+        best = min(best, minimax_xo(board, depth + 1, True))
+        board[i] = '0'
+    return best
+
+
+def alphabeta_xo(board, depth, alpha, beta, is_max):
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    if is_max:
+        best = -float('inf')
+        for i in get_empty_cells(board):
+            board[i] = 'X'
+            val = alphabeta_xo(board, depth + 1, alpha, beta, False)
+            board[i] = '0'
+            best = max(best, val)
+            alpha = max(alpha, best)
+            if beta <= alpha:
+                break
+        return best
+
+    best = float('inf')
+    for i in get_empty_cells(board):
+        board[i] = 'O'
+        val = alphabeta_xo(board, depth + 1, alpha, beta, True)
+        board[i] = '0'
+        best = min(best, val)
+        beta = min(beta, best)
+        if beta <= alpha:
+            break
+    return best
+
+
+def expectimax_xo(board, depth, is_max):
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    empty_cells = get_empty_cells(board)
+    if is_max:
+        best = -float('inf')
+        for i in empty_cells:
+            board[i] = 'X'
+            best = max(best, expectimax_xo(board, depth + 1, False))
+            board[i] = '0'
+        return best
+
+    expected_val = 0
+    if empty_cells:
+        prob = 1.0 / len(empty_cells)
+        for i in empty_cells:
+            board[i] = 'O'
+            expected_val += prob * expectimax_xo(board, depth + 1, True)
+            board[i] = '0'
+    return expected_val
+
+
+def minimax_xo_detail(board, depth, is_max, stats):
+    stats["visited"] += 1
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    if is_max:
+        best = -float('inf')
+        for i in get_empty_cells(board):
+            board[i] = 'X'
+            best = max(best, minimax_xo_detail(board, depth + 1, False, stats))
+            board[i] = '0'
+        return best
+
+    best = float('inf')
+    for i in get_empty_cells(board):
+        board[i] = 'O'
+        best = min(best, minimax_xo_detail(board, depth + 1, True, stats))
+        board[i] = '0'
+    return best
+
+
+def alphabeta_xo_detail(board, depth, alpha, beta, is_max, stats):
+    stats["visited"] += 1
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    empty_cells = get_empty_cells(board)
+
+    if is_max:
+        best = -float('inf')
+        for order, i in enumerate(empty_cells):
+            board[i] = 'X'
+            val = alphabeta_xo_detail(board, depth + 1, alpha, beta, False, stats)
+            board[i] = '0'
+            best = max(best, val)
+            alpha = max(alpha, best)
+            if beta <= alpha:
+                stats["pruned"] += len(empty_cells) - order - 1
+                break
+        return best
+
+    best = float('inf')
+    for order, i in enumerate(empty_cells):
+        board[i] = 'O'
+        val = alphabeta_xo_detail(board, depth + 1, alpha, beta, True, stats)
+        board[i] = '0'
+        best = min(best, val)
+        beta = min(beta, best)
+        if beta <= alpha:
+            stats["pruned"] += len(empty_cells) - order - 1
+            break
+    return best
+
+
+def expectimax_xo_detail(board, depth, is_max, stats):
+    stats["visited"] += 1
+    winner_score = _xo_terminal_score(board, depth)
+    if winner_score is not None:
+        return winner_score
+
+    empty_cells = get_empty_cells(board)
+
+    if is_max:
+        best = -float('inf')
+        for i in empty_cells:
+            board[i] = 'X'
+            best = max(best, expectimax_xo_detail(board, depth + 1, False, stats))
+            board[i] = '0'
+        return best
+
+    expected_val = 0
+    if empty_cells:
+        prob = 1.0 / len(empty_cells)
+        for i in empty_cells:
+            board[i] = 'O'
+            expected_val += prob * expectimax_xo_detail(board, depth + 1, True, stats)
+            board[i] = '0'
+        stats["chance_probability"] = round(prob, 4)
+    return expected_val
+
+
+def _xo_algorithm_note(algo_name):
+    if algo_name == 'MINIMAX':
+        return 'Minimax: X tối đa hóa điểm, O tối thiểu hóa điểm. Duyệt toàn bộ cây trạng thái còn lại.'
+    if algo_name == 'ALPHA_BETA':
+        return 'Alpha-Beta: giống Minimax nhưng cắt tỉa nhánh khi beta <= alpha để giảm số node phải xét.'
+    if algo_name == 'EXPECTIMAX':
+        return 'Expectimax: X chọn điểm kỳ vọng tốt nhất, các lượt O trong cây được xem như chance node.'
+    return 'Adversarial Search cho trò chơi XO.'
+
+
+def _xo_evaluate_candidate(board, move_index, player, algo_name):
+    board[move_index] = player
+    candidate_board = copy.deepcopy(board)
+
+    stats = {
+        "visited": 0,
+        "pruned": 0,
+        "chance_probability": None
+    }
+
+    # Sau khi player đặt quân xong, lượt tiếp theo thuộc về người còn lại.
+    next_is_max = (player == 'O')
+
+    if algo_name == 'MINIMAX':
+        value = minimax_xo_detail(board, 0, next_is_max, stats)
+        rule = 'Max chọn điểm lớn nhất' if player == 'X' else 'Min chọn điểm nhỏ nhất'
+    elif algo_name == 'ALPHA_BETA':
+        value = alphabeta_xo_detail(board, 0, -float('inf'), float('inf'), next_is_max, stats)
+        rule = 'Max chọn điểm lớn nhất + cắt tỉa αβ' if player == 'X' else 'Min chọn điểm nhỏ nhất + cắt tỉa αβ'
+    elif algo_name == 'EXPECTIMAX':
+        value = expectimax_xo_detail(board, 0, next_is_max, stats)
+        rule = 'Chọn theo điểm kỳ vọng' if player == 'X' else 'O chọn nhánh làm giảm lợi thế của X'
+    else:
+        value = 0
+        rule = 'Không xác định'
+
+    board[move_index] = '0'
+
+    return {
+        "move_index": move_index,
+        "move_label": XO_CELL_NAMES[move_index],
+        "action": f"{player} -> ô {move_index + 1} ({XO_CELL_NAMES[move_index]})",
+        "state": candidate_board,
+        "score": round(value, 3),
+        "evaluated_nodes": stats["visited"],
+        "pruned_branches": stats["pruned"],
+        "chance_probability": stats["chance_probability"],
+        "rule": rule,
+        "is_terminal": check_xo_winner(candidate_board) is not None,
+        "terminal_result": check_xo_winner(candidate_board),
+        "chosen": False
+    }
+
+
+def play_xo_ai_game(algo_name):
+    start_time = time.time()
+    board = ['0'] * 9
+    logs = []
+    reached_boards = [copy.deepcopy(board)]
+    current_player = 'X'
+    step = 0
+
+    logs.append({
+        "xo_detail": True,
+        "algorithm": algo_name,
+        "algorithm_note": _xo_algorithm_note(algo_name),
+        "step": 0,
+        "node": {
+            "id": "A",
+            "state": copy.deepcopy(board),
+            "action": "Start"
+        },
+        "before_board": copy.deepcopy(board),
+        "board": copy.deepcopy(board),
+        "player": "Start",
+        "current_player": current_player,
+        "chosen_move": None,
+        "chosen_score": None,
+        "candidates": [],
+        "frontier_added": [],
+        "reached": copy.deepcopy(reached_boards),
+        "status": "START",
+        "winner_after": None,
+        "time": 0
+    })
+
+    while check_xo_winner(board) is None:
+        step += 1
+        before_board = copy.deepcopy(board)
+        empty_cells = get_empty_cells(board)
+        candidates = []
+
+        for move_index in empty_cells:
+            candidates.append(_xo_evaluate_candidate(board, move_index, current_player, algo_name))
+
+        if current_player == 'X':
+            best_score = max(item["score"] for item in candidates)
+            chosen_candidate = next(item for item in candidates if item["score"] == best_score)
+        else:
+            best_score = min(item["score"] for item in candidates)
+            chosen_candidate = next(item for item in candidates if item["score"] == best_score)
+
+        for item in candidates:
+            item["chosen"] = (item["move_index"] == chosen_candidate["move_index"])
+
+        board[chosen_candidate["move_index"]] = current_player
+        reached_boards.append(copy.deepcopy(board))
+        winner_after = check_xo_winner(board)
+
+        logs.append({
+            "xo_detail": True,
+            "algorithm": algo_name,
+            "algorithm_note": _xo_algorithm_note(algo_name),
+            "step": step,
+            "node": {
+                "id": chr(65 + step) if step < 26 else f"N{step}",
+                "state": before_board,
+                "action": chosen_candidate["action"]
+            },
+            "before_board": before_board,
+            "board": copy.deepcopy(board),
+            "player": current_player,
+            "current_player": 'O' if current_player == 'X' else 'X',
+            "chosen_move": chosen_candidate["move_index"],
+            "chosen_label": chosen_candidate["move_label"],
+            "chosen_score": chosen_candidate["score"],
+            "candidates": candidates,
+            "frontier_added": candidates,
+            "reached": copy.deepcopy(reached_boards),
+            "status": "GOAL" if winner_after else "RUNNING",
+            "winner_after": winner_after,
+            "total_evaluated_nodes": sum(item["evaluated_nodes"] for item in candidates),
+            "total_pruned_branches": sum(item["pruned_branches"] for item in candidates),
+            "time": round((time.time() - start_time) * 1000, 2)
+        })
+
+        current_player = 'O' if current_player == 'X' else 'X'
+
+    logs.append({
+        "xo_detail": True,
+        "algorithm": algo_name,
+        "algorithm_note": _xo_algorithm_note(algo_name),
+        "step": step + 1,
+        "node": {
+            "id": "END",
+            "state": copy.deepcopy(board),
+            "action": "Game Over"
+        },
+        "before_board": copy.deepcopy(board),
+        "board": copy.deepcopy(board),
+        "player": "End",
+        "current_player": "-",
+        "chosen_move": None,
+        "chosen_score": None,
+        "candidates": [],
+        "frontier_added": [],
+        "reached": copy.deepcopy(reached_boards),
+        "status": "TERMINAL",
+        "winner": check_xo_winner(board),
+        "winner_after": check_xo_winner(board),
+        "total_evaluated_nodes": 0,
+        "total_pruned_branches": 0,
+        "time": round((time.time() - start_time) * 1000, 2)
+    })
+
+    return logs

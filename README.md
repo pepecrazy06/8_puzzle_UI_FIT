@@ -6,8 +6,8 @@
 - GVHD: TS. Phan Thị Huyền Trang 
 - SVTH: Thái Nhựt Huy
 - Đề Tài: Giao diện trò chơi 8 PUZZLE ứng dụng các thuật toán
-- Cập nhật lần cuối: 18/06/2026
-- Nội dung cập nhật: Update AC-3 Arc Consistency, Min-Conflicts và Fix lỗi nối option Forward Checking trên giao diện chưa đúng
+- Cập nhật lần cuối: 30/06/2026
+- Nội dung cập nhật: Update 3 thuật toán đối kháng và Fix lỗi nối option Forward Checking trên giao diện chưa đúng
 - Link github: https://github.com/pepecrazy06/8_puzzle_UI_FIT
 # 8-Puzzle Multi-Algorithm AI Search Visualizer
 

@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template
-from solver import PuzzleSolver
+from solver import PuzzleSolver, play_xo_ai_game
 
 app = Flask(__name__, template_folder='templates')
 solver_ai = PuzzleSolver()
@@ -57,6 +57,36 @@ def solve_belief_common():
             "belief_mode": "COMMON_ACTION",
             "history": [],
             "error": str(e)
+        }), 500
+
+
+@app.route('/api/play_xo', methods=['POST'])
+def api_play_xo():
+    try:
+        data = request.get_json(force=True) or {}
+        algorithm = data.get('algorithm', 'MINIMAX')
+
+        if algorithm not in ['MINIMAX', 'ALPHA_BETA', 'EXPECTIMAX']:
+            return jsonify({
+                "status": "error",
+                "logs": [],
+                "message": f"Unknown XO algorithm: {algorithm}"
+            }), 400
+
+        logs = play_xo_ai_game(algorithm)
+
+        return jsonify({
+            "status": "success",
+            "logs": logs,
+            "game_type": "XO"
+        })
+
+    except Exception as e:
+        app.logger.exception("XO play error")
+        return jsonify({
+            "status": "error",
+            "logs": [],
+            "message": str(e)
         }), 500
 
 

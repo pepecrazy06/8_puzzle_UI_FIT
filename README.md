@@ -54,7 +54,7 @@ Dự án mô phỏng và trực quan hóa quá trình giải bài toán **8-Puzz
 ### Bước 1: Tải project về máy
 
 ```bash
-git clone <https://github.com/pepecrazy06/8_puzzle_UI_FIT>
+git clone https://github.com/pepecrazy06/8_puzzle_UI_FIT.git
 cd 8_puzzle_UI_FIT
 ```
 
@@ -157,6 +157,12 @@ http://127.0.0.1:5000
 - **Belief State Search – Goal Known, Start Unknown**
 - **Belief State Search – Start Unknown, Goal Unknown**
 - **Belief State Search – Partial Observation**
+
+### 7.6. Adversarial Search / Game Playing
+
+- **Minimax**
+- **Alpha-Beta Pruning**
+- **Expectimax**
 ## 8. Heuristic sử dụng
 
 ### 8.1. Misplaced Tiles

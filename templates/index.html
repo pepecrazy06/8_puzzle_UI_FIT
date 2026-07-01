@@ -1117,10 +1117,31 @@
     }
     .xo-modal-title {
         font-size: 16px;
-        font-weight: 800;
-        color: #93c5fd;
+        font-weight: 900;
+        color: #f8fafc;
         margin: 0;
+        letter-spacing: .02em;
     }
+    .xo-title-minimax { color: #93c5fd !important; text-shadow: 0 0 18px rgba(147, 197, 253, .35); }
+    .xo-title-alpha-beta { color: #86efac !important; text-shadow: 0 0 18px rgba(134, 239, 172, .35); }
+    .xo-title-expectimax { color: #d8b4fe !important; text-shadow: 0 0 18px rgba(216, 180, 254, .35); }
+    .xo-algo-name-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,.16);
+        background: rgba(255,255,255,.06);
+        margin-top: 7px;
+    }
+    .xo-badge-minimax { color: #bfdbfe; border-color: rgba(96,165,250,.45); background: rgba(37,99,235,.18); }
+    .xo-badge-alpha-beta { color: #bbf7d0; border-color: rgba(74,222,128,.45); background: rgba(22,163,74,.16); }
+    .xo-badge-expectimax { color: #e9d5ff; border-color: rgba(192,132,252,.45); background: rgba(126,34,206,.18); }
     .xo-modal-subtitle {
         font-size: 11px;
         color: #94a3b8;
@@ -1237,6 +1258,71 @@
         font-size: 12px;
         margin-bottom: 12px;
     }
+    .xo-algo-info-box {
+        border: 1px solid #334155;
+        background: linear-gradient(135deg, rgba(15,23,42,.92), rgba(30,41,59,.72));
+        border-radius: 14px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    .xo-algo-info-title {
+        font-size: 13px;
+        font-weight: 900;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .xo-algo-info-title.minimax { color: #93c5fd; }
+    .xo-algo-info-title.alpha-beta { color: #86efac; }
+    .xo-algo-info-title.expectimax { color: #d8b4fe; }
+    .xo-algo-explain-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .xo-algo-explain-card {
+        border: 1px solid #334155;
+        background: rgba(17,24,39,.72);
+        border-radius: 10px;
+        padding: 9px;
+        font-size: 11px;
+        line-height: 1.45;
+        color: #cbd5e1;
+    }
+    .xo-algo-explain-card b {
+        display: block;
+        color: #f8fafc;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        margin-bottom: 4px;
+    }
+    .xo-three-algo-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .xo-three-algo-card {
+        border: 1px solid #334155;
+        background: rgba(17,24,39,.62);
+        border-radius: 12px;
+        padding: 9px;
+        font-size: 10.5px;
+        line-height: 1.35;
+        color: #94a3b8;
+    }
+    .xo-three-algo-card strong {
+        display: block;
+        font-size: 11.5px;
+        margin-bottom: 4px;
+        color: #e2e8f0;
+    }
+    .xo-three-algo-card.active.minimax { border-color: #60a5fa; background: rgba(37,99,235,.16); }
+    .xo-three-algo-card.active.alpha-beta { border-color: #4ade80; background: rgba(22,163,74,.14); }
+    .xo-three-algo-card.active.expectimax { border-color: #c084fc; background: rgba(126,34,206,.16); }
     .xo-candidate-table {
         display: flex;
         flex-direction: column;
@@ -1302,6 +1388,8 @@
         .xo-modal-body { grid-template-columns: 1fr; }
         .xo-left-panel { border-right: 0; border-bottom: 1px solid #334155; }
         .xo-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .xo-algo-explain-grid { grid-template-columns: 1fr; }
+        .xo-three-algo-row { grid-template-columns: 1fr; }
         .xo-candidate-row { grid-template-columns: 70px 1fr; }
     }
     </style>
@@ -1327,6 +1415,7 @@
                 <button onclick="renderXODetailsTable(xoLogs)" class="xo-detail-btn">Xem bảng chi tiết như thuật toán khác</button>
             </div>
             <div class="xo-right-panel">
+                <div id="xo-algo-info"></div>
                 <div id="xo-summary"></div>
                 <div id="xo-detail-list" class="xo-candidate-table"></div>
             </div>
@@ -1343,13 +1432,103 @@
             return algo === "MINIMAX" || algo === "ALPHA_BETA" || algo === "EXPECTIMAX";
         }
 
+        function getXOAlgorithmMeta(algo) {
+            const data = {
+                MINIMAX: {
+                    key: "minimax",
+                    title: "Minimax",
+                    badge: "MINIMAX",
+                    type: "Đối kháng tối ưu tuyệt đối",
+                    role: "X là MAX, O là MIN.",
+                    objective: "Duyệt cây trò chơi và chọn nước đi tốt nhất khi giả định đối thủ cũng đi tối ưu.",
+                    decision: "X lấy score cao nhất, O lấy score thấp nhất.",
+                    score: "X thắng = điểm dương, O thắng = điểm âm, hòa = 0.",
+                    detail: "Dễ hiểu nhất nhưng thường xét nhiều node vì không cắt tỉa.",
+                    short: "Duyệt toàn bộ cây, chọn nước tối ưu."
+                },
+                ALPHA_BETA: {
+                    key: "alpha-beta",
+                    title: "Alpha-Beta Pruning",
+                    badge: "ALPHA-BETA",
+                    type: "Minimax có cắt tỉa",
+                    role: "X là MAX, O là MIN.",
+                    objective: "Cho kết quả như Minimax nhưng bỏ qua các nhánh chắc chắn không làm đổi quyết định.",
+                    decision: "Theo dõi α của MAX và β của MIN; nếu β ≤ α thì cắt nhánh.",
+                    score: "Score vẫn giống Minimax, nhưng số node duyệt thường ít hơn.",
+                    detail: "Trong bảng candidate có thêm cột nhánh bị tỉa để thấy hiệu quả pruning.",
+                    short: "Tối ưu như Minimax nhưng duyệt ít node hơn."
+                },
+                EXPECTIMAX: {
+                    key: "expectimax",
+                    title: "Expectimax",
+                    badge: "EXPECTIMAX",
+                    type: "Đối kháng có yếu tố kỳ vọng",
+                    role: "X là MAX, lượt O trong cây được mô phỏng như chance/expected node.",
+                    objective: "Chọn nước đi có giá trị kỳ vọng tốt nhất khi đối thủ hoặc môi trường có yếu tố ngẫu nhiên.",
+                    decision: "MAX lấy score cao nhất; chance node lấy trung bình kỳ vọng các khả năng.",
+                    score: "Score có thể là số thập phân vì được tính theo kỳ vọng.",
+                    detail: "Phù hợp để so sánh với Minimax khi không giả định đối thủ luôn tối ưu tuyệt đối.",
+                    short: "Chọn nước dựa trên giá trị kỳ vọng."
+                }
+            };
+            return data[algo] || data.MINIMAX;
+        }
+
+        function renderXOAlgorithmInfo(algo, backendInfo) {
+            const meta = getXOAlgorithmMeta(algo);
+            const info = backendInfo || {};
+            const container = document.getElementById('xo-algo-info');
+            if (!container) return;
+
+            container.innerHTML = `
+                <div class="xo-three-algo-row">
+                    <div class="xo-three-algo-card ${algo === 'MINIMAX' ? 'active minimax' : ''}">
+                        <strong style="color:#93c5fd">Minimax</strong>
+                        Duyệt toàn bộ cây, MAX chọn điểm cao nhất và MIN chọn điểm thấp nhất.
+                    </div>
+                    <div class="xo-three-algo-card ${algo === 'ALPHA_BETA' ? 'active alpha-beta' : ''}">
+                        <strong style="color:#86efac">Alpha-Beta</strong>
+                        Giữ kết quả như Minimax nhưng cắt nhánh bằng điều kiện β ≤ α.
+                    </div>
+                    <div class="xo-three-algo-card ${algo === 'EXPECTIMAX' ? 'active expectimax' : ''}">
+                        <strong style="color:#d8b4fe">Expectimax</strong>
+                        Dùng giá trị kỳ vọng khi lượt đối thủ/môi trường có tính ngẫu nhiên.
+                    </div>
+                </div>
+
+                <div class="xo-algo-info-box">
+                    <div class="xo-algo-info-title ${meta.key}">
+                        <span>◆ ${meta.title}</span>
+                        <span class="xo-algo-name-badge xo-badge-${meta.key}">${meta.badge}</span>
+                    </div>
+                    <div class="xo-algo-explain-grid">
+                        <div class="xo-algo-explain-card"><b>Loại thuật toán</b>${info.group || meta.type}</div>
+                        <div class="xo-algo-explain-card"><b>Vai trò</b>${info.role || meta.role}</div>
+                        <div class="xo-algo-explain-card"><b>Mục tiêu</b>${info.objective || meta.objective}</div>
+                        <div class="xo-algo-explain-card"><b>Quy tắc chọn</b>${info.decision_rule || meta.decision}</div>
+                        <div class="xo-algo-explain-card"><b>Cách hiểu score</b>${info.score_rule || meta.score}</div>
+                        <div class="xo-algo-explain-card"><b>Ghi chú</b>${info.complexity || meta.detail}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setXOTitleStyle(algo) {
+            const meta = getXOAlgorithmMeta(algo);
+            const title = document.getElementById('xo-title');
+            title.classList.remove('xo-title-minimax', 'xo-title-alpha-beta', 'xo-title-expectimax');
+            title.classList.add(`xo-title-${meta.key}`);
+            title.innerHTML = `Thuật toán: <span>${meta.title}</span> <span class="xo-algo-name-badge xo-badge-${meta.key}">${meta.badge}</span>`;
+        }
+
         function openXOModal(algo) {
             document.getElementById('xo-modal').style.display = 'block';
             document.getElementById('xo-modal-overlay').style.display = 'block';
-            document.getElementById('xo-title').innerText = "Thuật toán: " + algo;
+            setXOTitleStyle(algo);
             document.getElementById('xo-subtitle').innerText = "Đang lấy dữ liệu chi tiết từ backend...";
             document.getElementById('xo-board-container').innerHTML = "";
             document.getElementById('xo-status').innerText = "Đang tính toán nước đi, score và cây trạng thái...";
+            document.getElementById('xo-algo-info').innerHTML = "";
             document.getElementById('xo-summary').innerHTML = "";
             document.getElementById('xo-detail-list').innerHTML = "";
             stopXOAuto();
@@ -1364,6 +1543,7 @@
                 if (data.status === "success") {
                     xoLogs = data.logs || [];
                     xoCurrentStep = 0;
+                    renderXOAlgorithmInfo(algo, xoLogs[0]?.algorithm_detail);
 
                     // Cho nút "Xem chi tiết quá trình" cũ cũng mở được bảng XO.
                     history = xoLogs;
@@ -1443,10 +1623,12 @@
                 <b>Trạng thái:</b> ${isTerminal ? formatXOWinner(log.winner || log.winner_after) : "Đang chạy"}
             `;
 
+            const stepMeta = getXOAlgorithmMeta(log.algorithm);
             document.getElementById('xo-subtitle').innerText = log.algorithm_note || "Chi tiết quá trình chọn nước đi của thuật toán đối kháng";
+            renderXOAlgorithmInfo(log.algorithm || 'MINIMAX', log.algorithm_detail);
 
             document.getElementById('xo-summary').innerHTML = `
-                <div class="xo-note">${log.algorithm_note || "Adversarial Search cho XO."}</div>
+                <div class="xo-note"><b style="color:${stepMeta.key === 'minimax' ? '#93c5fd' : stepMeta.key === 'alpha-beta' ? '#86efac' : '#d8b4fe'}">${stepMeta.title}</b> — ${log.algorithm_note || "Adversarial Search cho XO."}</div>
                 <div class="xo-summary-grid">
                     <div class="xo-summary-card"><span>Node hiện tại</span><b>${log.node?.id || '-'}</b></div>
                     <div class="xo-summary-card"><span>Người chơi</span><b>${log.player || '-'}</b></div>
@@ -1474,7 +1656,8 @@
                     <div>${buildXOMiniBoardHTML(c.state)}</div>
                     <div>
                         <b>${c.action}</b><br>
-                        <span class="xo-muted">${c.rule || ''}</span>
+                        <span class="xo-muted">${c.rule || ''}</span><br>
+                        <span class="xo-muted">${c.evaluation_detail || ''}${c.chance_probability ? ` | p=${c.chance_probability}` : ''}</span>
                     </div>
                     <div><span class="xo-muted">Score</span><br><span class="xo-score">${c.score}</span></div>
                     <div><span class="xo-muted">Node xét</span><br><b>${c.evaluated_nodes}</b></div>
@@ -1546,8 +1729,9 @@
             intro.innerHTML = `
                 <div class="w-full font-mono text-[12px] flex flex-col gap-1.5 text-slate-700">
                     <span class="font-bold uppercase text-blue-700 text-sm">Thiết lập Adversarial Search cho XO:</span>
-                    <span><b>MAX:</b> người chơi X, ưu tiên score cao nhất.</span>
-                    <span><b>MIN / Chance:</b> người chơi O, tùy thuật toán sẽ giảm điểm của X hoặc tính kỳ vọng.</span>
+                    <span><b style="color:#2563eb">Minimax:</b> duyệt toàn bộ cây game, X chọn score lớn nhất, O chọn score nhỏ nhất.</span>
+                    <span><b style="color:#16a34a">Alpha-Beta:</b> giống Minimax nhưng dùng α/β để cắt tỉa nhánh không cần thiết.</span>
+                    <span><b style="color:#7c3aed">Expectimax:</b> dùng giá trị kỳ vọng, phù hợp khi đối thủ/môi trường có yếu tố ngẫu nhiên.</span>
                     <span><b>Terminal:</b> X thắng = điểm dương, O thắng = điểm âm, hòa = 0.</span>
                 </div>
             `;
@@ -1583,7 +1767,7 @@
                             : "flex items-center gap-2 p-2 rounded border border-slate-100 font-mono text-[11px] text-slate-600";
                         item.innerHTML = `
                             ${buildXOMiniBoardHTML(c.state)}
-                            <span>${c.action} | score=${c.score} | nodes=${c.evaluated_nodes} | pruned=${c.pruned_branches || 0}</span>
+                            <span>${c.action} | score=${c.score} | nodes=${c.evaluated_nodes} | pruned=${c.pruned_branches || 0}<br><span class="text-[10px] text-slate-500">${c.evaluation_detail || ''}${c.chance_probability ? ` | p=${c.chance_probability}` : ''}</span></span>
                             ${c.chosen ? '<span class="ml-auto text-emerald-700">CHỌN</span>' : ''}
                         `;
                         col2.appendChild(item);
